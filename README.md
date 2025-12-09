@@ -34,6 +34,14 @@ This shows you all the current options of the application. Running the applicati
 edictor server
 ```
 
+### Installing from source (editable)
+
+```shell
+git clone https://github.com/digling/edictor.git
+cd edictor
+python -m pip install -e .
+```
+
 Running the application will try to automatically open the webbrowser at the default address `http://localhost:9999`. This may not work on all operation systems, partly, because command names for webbrowsers differ, and possibly also because the port is already used by another application. You can select another port when starting the application.
 
 ```shell
@@ -93,6 +101,32 @@ If you want to use the tool along with [LingPy](https://lingpy.org) and [LingRex
 
 ```shell
 (edi3) PS C:\Users\edictor3\Desktop\edictor3> python -m pip install lingpy lingrex
+```
+
+## Run with Docker (no local Python needed)
+
+We provide a lightweight Dockerfile to run EDICTOR in a container.
+
+Build:
+
+```bash
+docker build -t edictor .
+```
+
+Run (default port 9999):
+
+```bash
+docker run --rm -p 9999:9999 edictor
+# override port
+docker run --rm -e PORT=9876 -p 9876:9876 edictor
+```
+
+Then open `http://localhost:9999` in your browser.
+
+Mount data (optional):
+
+```bash
+docker run --rm -p 9999:9999 -v /path/to/data:/data edictor
 ```
 
 ## PyEDICTOR Functionalities in EDICTOR 3

@@ -54,6 +54,65 @@ UTIL.resizeframe = function (iframe) {
   iframe.width =  (iframe.contentWindow.document.body.clientWidth) + 'px';
 }
 
+/* 数据集覆盖率快速检查：统计每个方言点的有效条目数与概念覆盖率 */
+UTIL.checkCoverage = function () {
+  if (!WLS || !WLS.header) {
+    alert("请先加载一个 TSV 数据集。");
+    return;
+  }
+  var hdr = WLS.header;
+  var tIdx = hdr.indexOf("DOCULECT");
+  var cIdx = hdr.indexOf("CONCEPT");
+  if (tIdx === -1 || cIdx === -1) {
+    alert("缺少 DOCULECT 或 CONCEPT 列，无法计算覆盖率。");
+    return;
+  }
+  var formIdx = -1;
+  ["TOKENS", "FORM", "IPA"].some(function (name) {
+    var idx = hdr.indexOf(name);
+    if (idx !== -1) { formIdx = idx; return true; }
+    return false;
+  });
+  if (formIdx === -1) {
+    alert("缺少可用的语音列（TOKENS/FORM/IPA），无法计算覆盖率。");
+    return;
+  }
+
+  var concepts = new Set();
+  var stats = {}; // doculect -> {filled:Set, total:Set}
+  for (var key in WLS) {
+    if (isNaN(key)) { continue; }
+    var row = WLS[key];
+    var taxon = row[tIdx] || "";
+    var concept = row[cIdx] || "";
+    var form = row[formIdx] || "";
+    if (!taxon || !concept) { continue; }
+    concepts.add(concept);
+    if (!stats[taxon]) { stats[taxon] = {filled:new Set(), total:new Set()}; }
+    stats[taxon].total.add(concept);
+    if (form.trim()) { stats[taxon].filled.add(concept); }
+  }
+  var totalConcepts = concepts.size;
+  var messages = [];
+  var low = [];
+  var sum = 0, n=0;
+  for (var taxon in stats) {
+    var filled = stats[taxon].filled.size;
+    var cov = totalConcepts ? (filled/totalConcepts*100) : 0;
+    sum += cov; n += 1;
+    if (cov < 50) { low.push(taxon + " (" + cov.toFixed(1) + "%)"); }
+  }
+  var avg = n ? (sum/n).toFixed(1) : "0.0";
+  messages.push("全局平均覆盖率: " + avg + "%（基于列 " + hdr[formIdx] + "，概念数 " + totalConcepts + "）");
+  if (low.length) {
+    messages.push("覆盖率低于 50% 的方言点: " + low.join(", "));
+  } else {
+    messages.push("所有方言点覆盖率均在 50% 以上。");
+  }
+  alert(messages.join("\n"));
+  console.log("覆盖率详情", stats);
+};
+
 /* 确保某列存在，不存在则创建空列，返回列索引 */
 UTIL.ensureColumn = function (name) {
   name = (name || "").trim();

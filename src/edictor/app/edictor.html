@@ -275,6 +275,9 @@ EDICTOR main menu
                 onclick="document.getElementById('orthofile_upload').click();">上传正字法并分词</button>
               <input type="file" id="orthofile_upload" style="display:none" accept=".tsv,.txt"
                 onchange="UTIL.handleOrthoUpload(event);" />
+              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
+                title="快速查看各方言点的概念覆盖率，判断数据是否稠密到可以继续计算。"
+                onclick="UTIL.checkCoverage();">覆盖率检查</button>
             </div>
             <div class="btn-group pull-right">
               <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="addColumn(event);" id="add_column" placeholder="add column" title="新增列：输入列名并回车，自动创建空列。例如添加 COGID/COGIDS/MORPHEMES。" />
