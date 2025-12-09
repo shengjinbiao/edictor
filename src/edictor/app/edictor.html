@@ -265,13 +265,20 @@ EDICTOR main menu
               <select class="multiselect" multiple id="select_doculects" title="filter doculects"></select>
               <select class="multiselect" multiple id="select_concepts" title="filter concepts"></select>
               <select class="multiselect" multiple id="select_columns" title="filter columns"></select>
-              <button class="btn-primary btn mright titled submit3" onclick="applyFilter();showWLS(getCurrent());">
-                OK
-              </button>
+              <button class="btn-primary btn mright titled submit3" onclick="applyFilter();showWLS(getCurrent());">OK</button>
+              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
+                title="从指定列提取符号，生成 Grapheme-IPA 正字法文件，下载后可校对再分词。"
+                onclick="UTIL.generateOrthography();">生成正字法文件</button>
+              <span class="text-muted" style="font-size:11px;white-space:nowrap;margin-left:6px;">新增列/批量赋值在右侧输入后回车</span>
+              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
+                title="上传正字法文件（TSV: Grapheme→IPA），对指定列自动分词并写入目标列。"
+                onclick="document.getElementById('orthofile_upload').click();">上传正字法并分词</button>
+              <input type="file" id="orthofile_upload" style="display:none" accept=".tsv,.txt"
+                onchange="UTIL.handleOrthoUpload(event);" />
             </div>
             <div class="btn-group pull-right">
-              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="addColumn(event);" id="add_column" placeholder="add column" />
-              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="filterColumnValue(event);" id="filter_all" placeholder="COLUMN = value" />
+              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="addColumn(event);" id="add_column" placeholder="add column" title="新增列：输入列名并回车，自动创建空列。例如添加 COGID/COGIDS/MORPHEMES。" />
+              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="filterColumnValue(event);" id="filter_all" placeholder="COLUMN = value" title="批量赋值：填“列名=值”并回车，给该列所有行写入此值；已有列也可用来覆盖默认值。" />
             </div>
           </div>
         </div>

@@ -54,6 +54,202 @@ UTIL.resizeframe = function (iframe) {
   iframe.width =  (iframe.contentWindow.document.body.clientWidth) + 'px';
 }
 
+/* 确保某列存在，不存在则创建空列，返回列索引 */
+UTIL.ensureColumn = function (name) {
+  name = (name || "").trim();
+  if (!name) { return -1; }
+  var upper = name.toUpperCase().replace(/_/g, '');
+
+  /* 已存在则直接返回 */
+  if (WLS.columns && WLS.columns.hasOwnProperty(upper)) {
+    return WLS.columns[upper];
+  }
+
+  /* 创建新列（基于 addColumn 的逻辑精简版） */
+  for (var idx in WLS) {
+    if (!isNaN(idx)) {
+      WLS[idx].push("");
+    }
+  }
+  WLS.header.push(upper);
+  WLS.column_names[upper] = upper;
+  WLS.columns[upper] = WLS.header.length - 1;
+  if (CFG.basics.indexOf(upper) === -1) {
+    CFG.basics.push(upper);
+  }
+  return WLS.columns[upper];
+};
+
+/* 解析正字法文件文本，返回 {grapheme: ipa} 映射 */
+UTIL.parseOrthographyProfile = function (text) {
+  var lines = text.split(/\r?\n/);
+  var mapping = [];
+  lines.forEach(function (line) {
+    if (!line.trim()) { return; }
+    var parts = line.split(/\t/);
+    if (parts[0].toLowerCase().indexOf("grapheme") !== -1) { return; }
+    var g = parts[0].trim();
+    var ipa = (parts[1] || g).trim();
+    if (g) {
+      mapping.push([g, ipa]);
+    }
+  });
+  /* 按长度降序，便于最长匹配 */
+  mapping.sort(function (a, b) { return b[0].length - a[0].length; });
+  return mapping;
+};
+
+/* 根据 profile 对单条字符串分词，返回空格分隔的 tokens */
+UTIL.tokenizeWithProfile = function (value, profile) {
+  if (!value) { return ""; }
+  /* 如果已有空格分词，直接标准化空格 */
+  if (value.indexOf(" ") !== -1) {
+    return value.trim().split(/\s+/).join(" ");
+  }
+  var tokens = [];
+  var i = 0;
+  while (i < value.length) {
+    var matched = false;
+    for (var k = 0; k < profile.length; k += 1) {
+      var g = profile[k][0];
+      if (value.slice(i, i + g.length) === g) {
+        tokens.push(profile[k][1]);
+        i += g.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      tokens.push(value[i]);
+      i += 1;
+    }
+  }
+  return tokens.join(" ");
+};
+
+/* 载入正字法文件并对数据分词，写入目标列 */
+UTIL.handleOrthoUpload = function (evt) {
+  if (!evt.target.files || !evt.target.files.length) { return; }
+  var file = evt.target.files[0];
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var text = e.target.result;
+    var profile = UTIL.parseOrthographyProfile(text);
+    if (!profile.length) {
+      alert("正字法文件为空或格式不符（需 TSV: Grapheme\\tIPA）");
+      return;
+    }
+
+    /* 选择源列与目标列 */
+    var header = WLS.header || [];
+    var defaultSrc = "FORM";
+    if (typeof CFG._segments !== "undefined" && CFG._segments > -1) {
+      defaultSrc = header[CFG._segments];
+    } else if (header.indexOf("IPA") !== -1) {
+      defaultSrc = "IPA";
+    }
+    var src = prompt("选择分词的源列名", defaultSrc);
+    if (!src) { return; }
+    var srcIdx = header.indexOf(src);
+    if (srcIdx === -1) {
+      alert("找不到列：" + src + "。请检查列名。");
+      return;
+    }
+    var dest = prompt("分词结果写入的目标列名（默认 TOKENS）", "TOKENS");
+    if (!dest) { return; }
+    var destIdx = UTIL.ensureColumn(dest);
+
+    var changed = 0;
+    for (var key in WLS) {
+      if (!isNaN(key)) {
+        var val = WLS[key][srcIdx] || "";
+        var tok = UTIL.tokenizeWithProfile(val, profile);
+        WLS[key][destIdx] = tok;
+        changed += 1;
+      }
+    }
+
+    /* 更新 tokens 索引 */
+    CFG._segments = destIdx;
+    CFG.tokens = header[destIdx];
+    showWLS(getCurrent());
+    var msg = "分词完成，写入列 " + dest + "，共处理 " + changed + " 行。";
+    var saveNow = confirm(msg + "\n\n选择“确定”立即覆盖保存当前文件（需要本地运行并使用本地文件）；选择“取消”保留内存结果，稍后可用下载按钮导出。");
+    if (saveNow) {
+      if (typeof saveFileInPython === "function") {
+        saveFileInPython();
+      } else {
+        alert("未找到本地保存函数，请用浏览器下载按钮手动保存。");
+      }
+    } else {
+      alert("已保留内存结果，可用下载/保存按钮手动导出。");
+    }
+  };
+  reader.readAsText(file, "utf-8");
+  /* 重置 input，方便重复选择同一文件 */
+  evt.target.value = "";
+};
+
+/* 生成正字法文件：从指定列提取符号，输出 Grapheme\tIPA 供校对 */
+UTIL.generateOrthography = function () {
+  if (!WLS || !WLS.header) {
+    alert("请先加载一个 TSV 数据集。");
+    return;
+  }
+
+  // 选择默认列：优先 Tokens，其次 IPA，再次 FORM
+  var header = WLS.header;
+  var defaultCol = null;
+  if (typeof CFG._segments !== 'undefined' && CFG._segments > -1) {
+    defaultCol = header[CFG._segments];
+  } else if (header.indexOf("IPA") !== -1) {
+    defaultCol = "IPA";
+  } else if (header.indexOf("FORM") !== -1) {
+    defaultCol = "FORM";
+  } else {
+    defaultCol = header[header.length - 1];
+  }
+
+  var col = prompt("用于生成正字法的列名（默认 " + defaultCol + "）", defaultCol);
+  if (!col) { return; }
+  var idx = header.indexOf(col);
+  if (idx === -1) {
+    alert("找不到列：" + col + "。请确认列名大小写一致。");
+    return;
+  }
+
+  var units = new Set();
+  for (var key in WLS) {
+    if (!isNaN(key)) {
+      var val = WLS[key][idx];
+      if (!val) { continue; }
+      var parts;
+      if (val.indexOf(" ") !== -1) {
+        parts = val.trim().split(/\s+/);
+      } else {
+        parts = Array.from(val);
+      }
+      parts.forEach(function (p) { if (p) { units.add(p); } });
+    }
+  }
+
+  if (units.size === 0) {
+    alert("未提取到任何符号，请检查列内容。");
+    return;
+  }
+
+  var lines = ["Grapheme\tIPA"];
+  Array.from(units).sort().forEach(function (u) {
+    lines.push(u + "\t" + u);
+  });
+
+  var text = lines.join("\n");
+  var blob = new Blob([text], {type: 'text/tab-separated-values;charset=utf-8'});
+  var fname = (CFG.filename || "orthography") + "_profile.tsv";
+  saveAs(blob, fname);
+  alert("已生成正字法文件（" + fname + "），请校对后再用于分词。");
+};
+
 UTIL.settings = {
   'remote_databases' : ['germanic', 'huber1992', 'burmish', 'sinotibetan', 'tukano'],
   'triple_path' : 'triples/triples.py',

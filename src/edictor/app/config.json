@@ -23,6 +23,20 @@
         "columns": "DOCULECT|CONCEPT|IPA|TOKENS|ALIGNMENT|COGID|PATTERNS|NOTE"
       },
       "name": "Germanic (SQLITE, no proto-language)"
+    },
+    {
+      "url": "edictor.html?file=wenzhou.tsv",
+      "data": {
+        "columns": "ID|DOCULECT|CONCEPT|FORM|Initial|Final|Tone|Notes"
+      },
+      "name": "温州方言示例（TSV）"
+    },
+    {
+      "url": "edictor.html?file=wenzhou_1.tsv",
+      "data": {
+        "columns": "ID|DOCULECT|CONCEPT|FORM|Initial|Final|Tone|Notes"
+      },
+      "name": "温州方言示例（wenzhou_1）"
     }
   ]
 }
