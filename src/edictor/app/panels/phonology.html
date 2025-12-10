@@ -3,16 +3,35 @@
 <h3>
 Analyze Sounds
 </h3>
-<input id="input_phonology" class="form-control pull-left textfield" type="text" placeholder="select your doculect" onkeyup="showPhonology(event,this.value)" style="width:250px" />
+<input id="phonology_doculects" list="phonology_doculects_list" class="form-control pull-left textfield" style="width:260px;margin-right:5px;"
+  placeholder="选择或输入方言点" onchange="showPhonology(false,this.value);" onfocus="PHON.populateDoculects();" onclick="PHON.populateDoculects();" />
+<datalist id="phonology_doculects_list"></datalist>
 <button type="button"
-  onclick="showPhonology(false,document.getElementById('input_phonology').value);"
+  onclick="showPhonology(false,document.getElementById('phonology_doculects').value);"
   class="btn-primary submit3 titled btn">OK</button>
+<button type="button" class="btn-primary submit3 titled btn"
+  onclick="PHON.populateDoculects();">刷新方言列表</button>
+<button type="button" class="btn-primary submit3 titled btn" onclick="PHON.summaryBy('Initial','声母');">声母频次</button>
+<button type="button" class="btn-primary submit3 titled btn" onclick="PHON.summaryBy('Final','韵母');">韵母频次</button>
+<button type="button" class="btn-primary submit3 titled btn" onclick="PHON.summaryBy('Tone','声调');">声调频次</button>
+<button type="button" class="btn-primary submit3 titled btn" onclick="PHON.homophones('syllable');">同音表（声韵）</button>
+<button type="button" class="btn-primary submit3 titled btn" onclick="PHON.homophones('tone');">同音表（声韵调）</button>
 <a id="ipa_charts" target="pubWindow" class="btn btn-primary submit3">SHOW IPA CHART</a>
 <button type="button" class="btn-primary titled btn submit3 pull-right"
 	title="show help"
 	onclick="UTIL.show_help('phonology');" 
 	style="margin-left:5px;"><span class="glyphicon glyphicon-question-sign"></span>
 </button>
+<script>
+  if (typeof PHON !== "undefined" && typeof PHON.populateDoculects === "function") {
+    PHON.populateDoculects();
+  }
+  // 简单聚焦下拉，便于点击
+  (function(){
+    var sel = document.getElementById('phonology_doculects');
+    if (sel) { sel.focus(); }
+  })();
+</script>
 <br><br>
 <div style="max-height:500px;max-width:1000px;overflow-x:hidden;overflow-y:scroll;display:none;"
      id="phonology_table"></div>
