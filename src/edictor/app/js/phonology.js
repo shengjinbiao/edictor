@@ -79,38 +79,41 @@ PHON.findColumn = function (candidates, label) {
 
 /* 填充方言下拉 */
 PHON.populateDoculects = function () {
-  var inp = document.getElementById('phonology_doculects');
-  var dl = document.getElementById('phonology_doculects_list');
-  if (!inp || !dl || !WLS) { return; }
-  dl.innerHTML = "";
+  var sel = document.getElementById('phonology_doculects');
+  if (!sel || !WLS) { return; }
+  var current = sel.value;
+  sel.innerHTML = "";
   var taxa = [];
-  if (WLS.sorted_taxa && WLS.sorted_taxa.length) {
-    taxa = WLS.sorted_taxa;
-  } else if (WLS.taxa) {
-    taxa = Object.keys(WLS.taxa);
-  } else if (WLS._selected_doculects) {
-    taxa = WLS._selected_doculects;
-  } else if (WLS.header) {
-    // fallback: collect from DOCULECT column
-    var tIdx = PHON.findColumn(["DOCULECT","doculect","LANGUAGE","language"], "DOCULECT");
-    if (tIdx !== -1) {
-      var set = new Set();
-      for (var k in WLS) {
-        if (isNaN(k)) { continue; }
-        var val = WLS[k][tIdx];
-        if (val) { set.add(val); }
-      }
-      taxa = Array.from(set).sort();
+  // 优先直接从 DOCULECT 列收集去重值（避免筛选残留）
+  var tIdx = PHON.findColumn(["DOCULECT","doculect","LANGUAGE","language"], "DOCULECT");
+  if (tIdx !== -1) {
+    var set = new Set();
+    for (var k in WLS) {
+      if (isNaN(k)) { continue; }
+      var val = WLS[k][tIdx];
+      if (val) { set.add(val); }
     }
+    taxa = Array.from(set).sort();
+  }
+  // 若仍为空，再用已有的排序/筛选列表
+  if (!taxa.length && WLS.sorted_taxa && WLS.sorted_taxa.length) {
+    taxa = WLS.sorted_taxa;
+  } else if (!taxa.length && WLS.taxa) {
+    taxa = Object.keys(WLS.taxa);
+  } else if (!taxa.length && WLS._selected_doculects) {
+    taxa = WLS._selected_doculects;
   }
   if (!taxa.length) { return; }
   taxa.forEach(function (t) {
     var opt = document.createElement('option');
     opt.value = t;
-    dl.appendChild(opt);
+    opt.textContent = t;
+    sel.appendChild(opt);
   });
-  if (!inp.value && taxa.length) {
-    inp.value = taxa[0];
+  if (current && taxa.indexOf(current) !== -1) {
+    sel.value = current;
+  } else if (taxa.length) {
+    sel.value = taxa[0];
   }
 };
 
@@ -120,6 +123,8 @@ PHON.summaryBy = function (field, label) {
     fakeAlert("请先加载数据。");
     return;
   }
+  var sel = document.getElementById('phonology_doculects');
+  var onlyTaxon = (sel && sel.value) ? sel.value : null;
   var idx = PHON.findColumn([field, field.toLowerCase(), field.toUpperCase()], label);
   var tIdx = PHON.findColumn(["DOCULECT","doculect","LANGUAGE","language"], "DOCULECT");
   var cIdx = PHON.findColumn(["CONCEPT","concept","GLOSS","gloss"], "CONCEPT");
@@ -136,6 +141,7 @@ PHON.summaryBy = function (field, label) {
     var taxon = row[tIdx] || "";
     var val = row[idx] || "";
     var concept = row[cIdx] || "";
+    if (onlyTaxon && taxon !== onlyTaxon) { continue; }
     if (!taxon || !val) { continue; }
     if (!stats[taxon]) { stats[taxon] = {}; }
     if (!stats[taxon][val]) { stats[taxon][val] = {count:0, concepts:new Set()}; }
@@ -174,6 +180,8 @@ PHON.homophones = function (mode) {
     fakeAlert("请先加载数据。");
     return;
   }
+  var sel = document.getElementById('phonology_doculects');
+  var onlyTaxon = (sel && sel.value) ? sel.value : null;
   var tIdx = PHON.findColumn(["DOCULECT","doculect","LANGUAGE","language"], "DOCULECT");
   var cIdx = PHON.findColumn(["CONCEPT","concept","GLOSS","gloss"], "CONCEPT");
   var formIdx = PHON.findColumn(["FORM","Tokens","TOKENS","IPA"], "FORM/TOKENS/IPA");
@@ -188,6 +196,7 @@ PHON.homophones = function (mode) {
     var row = WLS[key];
     var taxon = row[tIdx] || "";
     var concept = row[cIdx] || "";
+    if (onlyTaxon && taxon !== onlyTaxon) { continue; }
     if (!taxon) { continue; }
     var ini = iIdx !== -1 ? row[iIdx] : "";
     var fin = fIdx !== -1 ? row[fIdx] : "";

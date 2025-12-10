@@ -3,9 +3,8 @@
 <h3>
 Analyze Sounds
 </h3>
-<input id="phonology_doculects" list="phonology_doculects_list" class="form-control pull-left textfield" style="width:260px;margin-right:5px;"
-  placeholder="选择或输入方言点" onchange="showPhonology(false,this.value);" onfocus="PHON.populateDoculects();" onclick="PHON.populateDoculects();" />
-<datalist id="phonology_doculects_list"></datalist>
+<select id="phonology_doculects" class="form-control pull-left textfield" style="width:260px;margin-right:8px;"
+  onchange="showPhonology(false,this.value);"></select>
 <button type="button"
   onclick="showPhonology(false,document.getElementById('phonology_doculects').value);"
   class="btn-primary submit3 titled btn">OK</button>
@@ -24,13 +23,14 @@ Analyze Sounds
 </button>
 <script>
   if (typeof PHON !== "undefined" && typeof PHON.populateDoculects === "function") {
-    PHON.populateDoculects();
+    (function autoFill(count){
+      PHON.populateDoculects();
+      var sel = document.getElementById('phonology_doculects');
+      if ((!sel || !sel.options.length) && count < 5) {
+        setTimeout(function(){autoFill(count+1);}, 300);
+      }
+    })(0);
   }
-  // 简单聚焦下拉，便于点击
-  (function(){
-    var sel = document.getElementById('phonology_doculects');
-    if (sel) { sel.focus(); }
-  })();
 </script>
 <br><br>
 <div style="max-height:500px;max-width:1000px;overflow-x:hidden;overflow-y:scroll;display:none;"

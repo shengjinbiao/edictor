@@ -562,10 +562,29 @@ COGNACY.lingpy_cognates = () => {
 COGNACY.compute_cognates = () => {
   "use strict";
   const all_cogids = {};
-  const formatter = CFG._morphology_mode === "partial" ? CFG._roots : CFG._cognates;
+  const cogIdxCandidate = CFG._morphology_mode === "partial" ? CFG._roots : CFG._cognates;
+  let formatter = (typeof cogIdxCandidate === "number" && cogIdxCandidate > -1 && WLS.header[cogIdxCandidate])
+    ? cogIdxCandidate
+    : -1;
   if (formatter === -1) {
-    fakeAlert("You must specify a column to store the cognate judgments in the SETTINGS menu.");
-    return;
+    /* 提示自动创建 cognate 列 */
+    const defaultName = CFG._morphology_mode === "partial" ? "COGIDS" : "COGID";
+    const name = prompt("未设置同源编号列，输入要创建的列名（默认 " + defaultName + "）", defaultName);
+    if (!name) { return; }
+    const idx = UTIL.ensureColumn(name);
+    if (idx === -1) {
+      fakeAlert("未能创建列，请检查列名。");
+      return;
+    }
+    if (CFG._morphology_mode === "partial") {
+      CFG._roots = idx;
+    } else {
+      CFG._cognates = idx;
+    }
+    formatter = idx;
+    createSelectors(); /* 更新下拉 */
+    showWLS(getCurrent());
+    fakeAlert("已创建列 " + name + "，将用于存储同源编号。");
   }
   let new_cogid = 1;
   const idxs = [];

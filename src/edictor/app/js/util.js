@@ -166,20 +166,30 @@ UTIL.tokenizeWithProfile = function (value, profile) {
     return value.trim().split(/\s+/).join(" ");
   }
   var tokens = [];
+  var chars = Array.from(value); // 正确处理代理对
   var i = 0;
-  while (i < value.length) {
+  while (i < chars.length) {
     var matched = false;
+    // 按 profile 中最长的图形匹配
     for (var k = 0; k < profile.length; k += 1) {
       var g = profile[k][0];
-      if (value.slice(i, i + g.length) === g) {
+      var glen = Array.from(g).length;
+      var slice = chars.slice(i, i + glen).join("");
+      if (slice === g) {
         tokens.push(profile[k][1]);
-        i += g.length;
+        i += glen;
         matched = true;
         break;
       }
     }
     if (!matched) {
-      tokens.push(value[i]);
+      var ch = chars[i];
+      // 若是附加符号（结合符号），附着到前一 token
+      if (/\p{M}/u.test(ch) && tokens.length > 0) {
+        tokens[tokens.length - 1] += ch;
+      } else {
+        tokens.push(ch);
+      }
       i += 1;
     }
   }
@@ -277,17 +287,35 @@ UTIL.generateOrthography = function () {
     return;
   }
 
+  // 按空格或“字母+附加符号”聚合成基本单元
+  function extractUnits(val) {
+    var res = [];
+    if (!val) { return res; }
+    if (val.indexOf(" ") !== -1) {
+      val.trim().split(/\s+/).forEach(function (p) { if (p) { res.push(p); } });
+      return res;
+    }
+    var chars = Array.from(val);
+    var cur = "";
+    for (var i = 0; i < chars.length; i += 1) {
+      var ch = chars[i];
+      if (/\p{M}/u.test(ch)) {
+        cur = cur ? (cur + ch) : ch;
+      } else {
+        if (cur) { res.push(cur); }
+        cur = ch;
+      }
+    }
+    if (cur) { res.push(cur); }
+    return res;
+  }
+
   var units = new Set();
   for (var key in WLS) {
     if (!isNaN(key)) {
       var val = WLS[key][idx];
       if (!val) { continue; }
-      var parts;
-      if (val.indexOf(" ") !== -1) {
-        parts = val.trim().split(/\s+/);
-      } else {
-        parts = Array.from(val);
-      }
+      var parts = extractUnits(val);
       parts.forEach(function (p) { if (p) { units.add(p); } });
     }
   }

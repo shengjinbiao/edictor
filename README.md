@@ -4,6 +4,13 @@ EDICTOR is a web-based tool for computer-assisted language comparison. As of Ver
 
 In order to get started with the local application, you should make sure to have a recent Python installation (3.9 or higher) along with the PIP package manager. It is necessary to install the package from a virtual environment, so we start with setting this up.
 
+## 近期更新（中文）
+- 界面新增分词辅助：上传正字法文件自动生成 `TOKENS`，生成后可直接覆盖保存或下载。
+- 覆盖率检查：一键查看每个方言点的概念覆盖率，判断数据是否稠密。
+- 同源计算自动创建 COGID：未设置同源列时会提示并创建 `COGID/COGIDS`。
+- 音系分析增强：声母/韵母/声调频次，同音表（声韵/声韵调），支持中文列名/大小写不敏感。
+- 方言点选择下拉自动填充（从 DOCULECT 列），选中后统计仅作用于当前方言点。
+
 ## Virtual Environments
 
 One possible way of managing virtual environments is the `virtualenv' package. The first recommended step is to install the 'virtualenv' package that manages those environments, and to create and activate such an environment. You can read more about virtual environments here: [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html).
