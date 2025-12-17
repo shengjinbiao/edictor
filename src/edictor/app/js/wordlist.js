@@ -712,6 +712,10 @@ function createSelectors() {
 
 /* major function for displaying the Wordlist panel of the Edictor */
 function showWLS(start){
+  start = parseInt(start, 10);
+  if (isNaN(start) || start < 1) {
+    start = 1;
+  }
   if (!CFG['parsed']) {
     if (CFG['storable']) {
       CFG['last_time'] = new Date();
@@ -976,6 +980,12 @@ function showWLS(start){
     var startbefore = start - 1;
     previous.value = prestart + '-' + startbefore;
     toggleClasses(['previous'],'hidden','unhidden');
+    // 兜底：若 onclick 被覆盖或失效，读取按钮数值跳转
+    $('#previous').off('click._fallback').on('click._fallback', function () {
+      var v = (this.value || '').split('-')[0];
+      var idx = parseInt(v, 10);
+      showWLS(!isNaN(idx) && idx > 0 ? idx : 1);
+    });
   }
   else {
     toggleClasses(['previous'],'unhidden','hidden');
@@ -991,6 +1001,12 @@ function showWLS(start){
     next.value = poststart + '-' + postpoststart;
 
     toggleClasses(['next'],'hidden','unhidden');
+    // 兜底：若 onclick 被覆盖或失效，读取按钮数值跳转
+    $('#next').off('click._fallback').on('click._fallback', function () {
+      var v = (this.value || '').split('-')[0];
+      var idx = parseInt(v, 10);
+      showWLS(!isNaN(idx) && idx > 0 ? idx : 1);
+    });
   }
   else {
     toggleClasses(['next'],'unhidden','hidden');
@@ -2900,5 +2916,3 @@ function filterOccurrences(doculect, occurrences) {
 window.onload = function() {
     undoManager = new UndoManager();
 };
-
-

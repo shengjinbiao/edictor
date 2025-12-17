@@ -158,19 +158,89 @@ UTIL.parseOrthographyProfile = function (text) {
   return mapping;
 };
 
+/* 粗移植 lingpy.sequence.sound_classes.ipa2tokens，支持半附加符组合 */
+UTIL.ipaToTokens = function (sequence, opts) {
+  opts = opts || {};
+  if (!sequence) { return []; }
+  if (sequence.indexOf(" ") !== -1) {
+    return sequence.trim().split(/\s+/);
+  }
+  var vowels = opts.vowels || "ṍʯεaeiouyáãæíõøúĩıœũūǒǝȇȗɐɑɒɔɘəɚɛɜɞɤɨɪɯɵɶɷɿʅʉʊʌʏᴀᴇᴜẽỹṳ";
+  var diacritics = opts.diacritics || "!:|¯ʰʱʲʳʴʵʶʷʸʹʺʻʼʽʾʿˀˀ ˁ˂˃˄˅ˆˈˉˊˋˌˍˎˏːˑ˒˓˔˕˖˗˞˟ˠˡˢˣˤˬ˭ˮ˯˰˱˲˳˴˵˶˷˸˹˺˻˼˽˾˿̴̵̶̷̸̡̢̧̨̛̖̗̘̙̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̀́̂̃̄̅̆̇̈̉̊̋̌̍̎̏̐̑̒̓̔̽̾̿̀́͂̓̈́͆͊͋͌̕̚ͅ͏͓͔͕͖͙͚͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ҃҄҅҆҇͘͟͢͝͞͠҈҉ՙٰܑٖ߲߫߬߭߮߯߰߱߳ᴬᴭᴮᴯᴰᴱᴲᴳᴴᴵᴶᴷᴸᴹᴺᴻᴼᴽᴾᴿᵀᵁᵂᵃᵄᵅᵆᵇᵈᵉᵊᵋᵌᵍᵎᵏᵐᵑᵒᵓᵔᵕᵖᵗᵘᵙᵚᵛᵜᵝᵞᵟᵠᵡᵢᵣᵤᵥᵦᵧᵨᵩᵪᵸᶛᶜᶝᶞᶟᶠᶡᶢᶣᶤᶥᶦᶧᶨᶩᶪᶫᶬᶭᶮᶯᶰᶱᶲᶳᶴᶵᶶᶷᶸᶹᶺᶻᶼᶽᶾᶿ᷎᷂᷊᷏᷽᷿᷀᷁᷃᷄᷅᷆᷇᷈᷉᷋᷌ᷓᷔᷕᷖᷗᷘᷙᷚᷛᷜᷝᷞᷟᷠᷡᷢᷣᷤᷥᷦ᷾᷼᷍ⁱ⁺⁻⁼⁽⁾ⁿ₊₋₌₍₎ₐₑₒₓₔₕₖₗₘₙₚₛₜ⃒⃓⃘⃙⃚⃥⃦⃪⃫⃨⃬⃭⃮⃯⃐⃑⃔⃕⃖⃗⃛⃜⃧⃩⃰→⇒⨧ⱼⱽⵯ゙゚ⷠⷡⷢⷣⷤⷥⷦⷧⷨⷩⷪⷫⷬⷭⷮⷯⷰⷱⷲⷳⷴⷵⷶⷷⷸⷹⷺⷻⷼⷽⷾⷿ꙯꙼꙽ꚜꚝꜛꜜꜝꜞꜟꞈ꞉꞊꣠꣡꣢꣣꣤꣥꣦꣧꣨꣩꣪꣫꣬꣭꣮꣯꣰꣱ꩰꭜꭞ︠︡︢︣︤︥︦̲";
+  var stress = opts.stress || "ˈˌ'";
+  var tones = opts.tones || "¹²³⁴⁵⁶⁷⁸⁹⁰₁₂₃₄₅₆₇₈₉₀0123456789˥˦˧˨˩˪˫-꜈-꜉-꜊-꜋-꜌-꜍-꜎-꜏-꜐-꜑-꜒-꜓-꜔-꜕-꜖-ꜗ-ꜘ-ꜙ-ꜚ-꜀-꜁-꜂-꜃-꜄-꜅-꜆-꜇";
+  var combiners = opts.combiners || "͜͡";
+  var breaks = opts.breaks || ".-";
+  var semi = typeof opts.semi_diacritics === "string" ? opts.semi_diacritics : "hsʃ̢ɕʂʐʑʒw";
+  var mergeVowels = opts.merge_vowels !== false;
+  var mergeGeminates = opts.merge_geminates !== false;
+  var out = [];
+  var vowel = false;
+  var tone = false;
+  var merge = false;
+  var start = true;
+  for (var idx = 0; idx < sequence.length; idx += 1) {
+    var ch = sequence[idx];
+    if (breaks.indexOf(ch) !== -1) {
+      start = true; vowel = false; tone = false; merge = false; continue;
+    }
+    if (combiners.indexOf(ch) !== -1) {
+      if (!out.length) { out.push("\u2205" + ch); }
+      else { out[out.length - 1] += ch; }
+      merge = false; continue;
+    }
+    if (stress.indexOf(ch) !== -1) {
+      out.push(ch); merge = true; tone = false; vowel = false; start = false; continue;
+    }
+    if (merge) {
+      out[out.length - 1] += ch;
+      if (vowels.indexOf(ch) !== -1) { vowel = true; }
+      merge = false; continue;
+    }
+    if (diacritics.indexOf(ch) !== -1) {
+      if (!start) { out[out.length - 1] += ch; }
+      else { out.push(ch); start = false; merge = true; }
+      continue;
+    }
+    if (vowels.indexOf(ch) !== -1) {
+      if (vowel && mergeVowels) { out[out.length - 1] += ch; }
+      else { out.push(ch); }
+      vowel = true; start = false; tone = false; continue;
+    }
+    if (tones.indexOf(ch) !== -1) {
+      if (tone) { out[out.length - 1] += ch; }
+      else { out.push(ch); }
+      tone = true; start = false; vowel = false; continue;
+    }
+    if (semi.indexOf(ch) !== -1 && !start && !vowel && !tone && out.length && ["_", "◦", "+"].indexOf(out[out.length - 1]) === -1) {
+      out[out.length - 1] += ch;
+      continue;
+    }
+    out.push(ch);
+    start = false; tone = false; vowel = false;
+  }
+  if (!mergeGeminates || !out.length) { return out; }
+  var merged = [out[0]];
+  for (var j = 0; j < out.length - 1; j += 1) {
+    var a = out[j];
+    var b = out[j + 1];
+    if (a === b) { merged[merged.length - 1] += b; }
+    else { merged.push(b); }
+  }
+  return merged;
+};
+
 /* 根据 profile 对单条字符串分词，返回空格分隔的 tokens */
 UTIL.tokenizeWithProfile = function (value, profile) {
   if (!value) { return ""; }
-  /* 如果已有空格分词，直接标准化空格 */
-  if (value.indexOf(" ") !== -1) {
-    return value.trim().split(/\s+/).join(" ");
-  }
+  // Remove whitespace before matching against the profile to avoid early returns
+  value = value.trim().replace(/\s+/g, "");
+  if (!value) { return ""; }
   var tokens = [];
-  var chars = Array.from(value); // 正确处理代理对
+  var chars = Array.from(value);
   var i = 0;
   while (i < chars.length) {
     var matched = false;
-    // 按 profile 中最长的图形匹配
     for (var k = 0; k < profile.length; k += 1) {
       var g = profile[k][0];
       var glen = Array.from(g).length;
@@ -184,7 +254,6 @@ UTIL.tokenizeWithProfile = function (value, profile) {
     }
     if (!matched) {
       var ch = chars[i];
-      // 若是附加符号（结合符号），附着到前一 token
       if (/\p{M}/u.test(ch) && tokens.length > 0) {
         tokens[tokens.length - 1] += ch;
       } else {
@@ -195,6 +264,25 @@ UTIL.tokenizeWithProfile = function (value, profile) {
   }
   return tokens.join(" ");
 };
+
+/* 提取最简单的字母正字法单元：跳过空格，连字符单独，附加符号跟在前一个字母后 */
+UTIL.extractSimpleGraphemes = function (value) {
+  if (!value) { return []; }
+  var tokens = [];
+  var chars = Array.from(value);
+  chars.forEach(function (ch) {
+    if (/\s/.test(ch)) { return; }
+    if (ch === "-") { tokens.push(ch); return; }
+    if (/[\p{M}\p{Lm}\p{Sk}\p{No}]/u.test(ch)) {
+      if (tokens.length) { tokens[tokens.length - 1] += ch; }
+      else { tokens.push(ch); }
+      return;
+    }
+    tokens.push(ch);
+  });
+  return tokens;
+};
+
 
 /* 载入正字法文件并对数据分词，写入目标列 */
 UTIL.handleOrthoUpload = function (evt) {
@@ -287,27 +375,10 @@ UTIL.generateOrthography = function () {
     return;
   }
 
-  // 按空格或“字母+附加符号”聚合成基本单元
+  // 按空格或 IPA 分词（含半附加符号）聚合成基本单元
   function extractUnits(val) {
-    var res = [];
-    if (!val) { return res; }
-    if (val.indexOf(" ") !== -1) {
-      val.trim().split(/\s+/).forEach(function (p) { if (p) { res.push(p); } });
-      return res;
-    }
-    var chars = Array.from(val);
-    var cur = "";
-    for (var i = 0; i < chars.length; i += 1) {
-      var ch = chars[i];
-      if (/\p{M}/u.test(ch)) {
-        cur = cur ? (cur + ch) : ch;
-      } else {
-        if (cur) { res.push(cur); }
-        cur = ch;
-      }
-    }
-    if (cur) { res.push(cur); }
-    return res;
+    if (!val) { return []; }
+    return UTIL.extractSimpleGraphemes(val);
   }
 
   var units = new Set();
@@ -1008,5 +1079,3 @@ LIST.sum = function(x) {
   /* https://stackoverflow.com/questions/3762589/fastest-javascript-summation */
   return x.reduce(function(pv, cv) { return pv + cv; }, 0);
 };
-
-

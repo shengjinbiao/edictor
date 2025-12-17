@@ -45,4 +45,5 @@ dighl/
 old/
 triples/rechte.py
 *.zip
-
+*.xlsx
+*.docx

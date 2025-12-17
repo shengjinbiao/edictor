@@ -187,12 +187,15 @@ def file_handler(s, ft, fn):
     """
     Handle different file types.
     """
+    message = b"404 FNF"
+    ctype = DATA.get(ft, "text/plain; charset=utf-8")
     if ft in ["js", "html", "css", "csv"]:
         try:
             with codecs.open(edictor_path(fn[1:]), "r", "utf-8") as f:
                 message = bytes(f.read(), "utf-8")
         except FileNotFoundError:
             message = b"404 FNF"
+            ctype = "text/plain; charset=utf-8"
     elif ft == "tsv":
         # if a file is in the same folder where the app was started, it is
         # marked by preceding it with "/data/" by the JS application, so
@@ -212,7 +215,8 @@ def file_handler(s, ft, fn):
                 message = f.read()
         except FileNotFoundError:
             message = b"404 FNF"
-    send_response(s, message, DATA[ft], encode=False)
+            ctype = "application/octet-stream"
+    send_response(s, message, ctype, encode=False)
 
 
 def serve_base(s, conf):
@@ -755,6 +759,5 @@ def quit(s):
     """
     send_response(s, "Terminated the application.")
     os.kill(os.getpid(), signal.SIGTERM)
-
 
 
