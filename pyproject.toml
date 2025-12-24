@@ -32,7 +32,7 @@ Repository = "https://github.com/digling/edictor.git"
 [project.optional-dependencies]
 dev = [ "build", "wheel", "twine", "tox", "lingrex==1.4.2", "lingpy==2.6.13", "lexibase",]
 test = [ "pytest", "pytest-cov", "coverage", "lingpy==2.6.13", "lingrex==1.4.2", "lexibase",]
-lingpy = [ "lingpy==2.6.13", "lingrex==1.4.2", "lexibase",]
+lingpy = [ "lingpy==2.6.13", "lingrex==1.4.2", "lexibase", "sentence-transformers>=2.2.2", "torch>=2.1.0",]
 
 [project.scripts]
 edictor = "edictor.cli:main"

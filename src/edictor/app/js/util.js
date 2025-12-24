@@ -114,6 +114,397 @@ UTIL.checkCoverage = function () {
 };
 
 /* 确保某列存在，不存在则创建空列，返回列索引 */
+UTIL.semanticFilterDialog = function () {
+  if (!CFG || !CFG.python) {
+    fakeAlert("Semantic filtering requires the local Python server.");
+    return;
+  }
+  if (document.getElementById("semantic-filter-popup")) {
+    return;
+  }
+  var text = ''
+    + '<div class="editmode" id="semantic-filter-popup">'
+    + '  <div class="edit_links niceblue" style="width:560px;padding:10px;">'
+    + '    <p>Semantic Concept Filter</p>'
+    + '    <div class="alignments" style="padding:10px;text-align:left;">'
+    + '      <label style="min-width:110px;display:inline-block;">Include</label>'
+    + '      <input id="semantic_include" class="form-control textfield" '
+    + '        style="width:75%;display:inline-block;" '
+    + '        placeholder="head; skull; forehead" /><br><br>'
+    + '      <label style="min-width:110px;display:inline-block;">Exclude</label>'
+    + '      <input id="semantic_exclude" class="form-control textfield" '
+    + '        style="width:75%;display:inline-block;" '
+    + '        placeholder="taro; suffix; classifier" /><br><br>'
+    + '      <label style="min-width:110px;display:inline-block;">Threshold</label>'
+    + '      <input id="semantic_threshold" type="number" step="0.01" '
+    + '        class="form-control textfield" style="width:120px;display:inline-block;" value="0.18" />'
+    + '      <label style="margin-left:10px;">'
+    + '        <input id="semantic_require_gpu" type="checkbox" /> Require GPU'
+    + '      </label>'
+    + '      <div style="margin-top:12px;">'
+    + '        <input class="btn btn-primary submit" type="button" '
+    + '          onclick="UTIL.semanticFilterApply();" value="APPLY" /> '
+    + '        <input class="btn btn-primary submit" type="button" '
+    + '          onclick="UTIL.semanticFilterClose();" value="CLOSE" />'
+    + '      </div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+  document.body.insertAdjacentHTML("beforeend", text);
+};
+
+UTIL.semanticFilterClose = function () {
+  var pop = document.getElementById("semantic-filter-popup");
+  if (pop) {
+    pop.parentNode.removeChild(pop);
+  }
+};
+
+UTIL.semanticFilterApply = function () {
+  var include = (document.getElementById("semantic_include") || {}).value || "";
+  var exclude = (document.getElementById("semantic_exclude") || {}).value || "";
+  var threshold = parseFloat((document.getElementById("semantic_threshold") || {}).value);
+  var requireGpu = (document.getElementById("semantic_require_gpu") || {}).checked;
+  if (!include.trim()) {
+    fakeAlert("Please provide include terms.");
+    return;
+  }
+  if (!CFG || !CFG.sorted_concepts || !CFG.sorted_concepts.length) {
+    fakeAlert("No concepts found in the current dataset.");
+    return;
+  }
+  if (isNaN(threshold)) {
+    threshold = 0.18;
+  }
+
+  var payload = {
+    concepts: CFG.sorted_concepts,
+    include: include,
+    exclude: exclude,
+    threshold: threshold,
+    require_gpu: requireGpu
+  };
+
+  $('#popup_background').show();
+  $.ajax({
+    async: true,
+    type: "POST",
+    url: "semantic_filter.py",
+    dataType: "text",
+    data: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+    success: function (data) {
+      $('#popup_background').fadeOut();
+      var out;
+      try {
+        out = JSON.parse(data);
+      } catch (e) {
+        fakeAlert("Invalid response from semantic filter.");
+        return;
+      }
+      if (out.error) {
+        fakeAlert(out.error);
+        return;
+      }
+      if (!out.concepts || !out.concepts.length) {
+        fakeAlert("No concepts matched your semantic filter.");
+        return;
+      }
+      $('#select_concepts').multiselect('deselectAll', false);
+      $('#select_concepts').multiselect('select', out.concepts);
+      CFG._selected_concepts = out.concepts;
+      applyFilter();
+      showWLS(1);
+      var msg = "Semantic filter kept " + out.kept + " / " + out.total + " concepts.";
+      if (out.device && out.device !== "cuda") {
+        msg += " GPU not available; ran on CPU.";
+      }
+      fakeAlert(msg);
+      UTIL.semanticFilterClose();
+    },
+    error: function () {
+      $('#popup_background').fadeOut();
+      fakeAlert("Semantic filter request failed.");
+    }
+  });
+};
+
+/* --- Server-side paging (for very large TSVs) --- */
+UTIL._serverPaging = {
+  offset: 0,
+  limit: 50,
+  total: 0,
+  payload: {}
+};
+
+UTIL._serverPagingClose = function () {
+  var pop = document.getElementById("server-paging-popup");
+  if (pop) {
+    pop.parentNode.removeChild(pop);
+  }
+};
+
+UTIL._serverPagingRender = function (resp) {
+  var info = document.getElementById("server_paging_info");
+  var tbl = document.getElementById("server_paging_table");
+  if (!resp || resp.error) {
+    info.innerText = resp && resp.error ? resp.error : "Failed.";
+    tbl.innerHTML = "";
+    return;
+  }
+  UTIL._serverPaging.total = resp.total || 0;
+  UTIL._serverPaging.offset = resp.offset || 0;
+  UTIL._serverPaging.limit = resp.limit || 50;
+  var total = UTIL._serverPaging.total;
+  var start = total ? (UTIL._serverPaging.offset + 1) : 0;
+  var end = Math.min(total, UTIL._serverPaging.offset + UTIL._serverPaging.limit);
+  info.innerText = "Rows " + start + "-" + end + " / " + total;
+
+  var header = resp.header || [];
+  var rows = resp.rows || [];
+  var html = '<table class="table table-bordered table-condensed" style="width:100%;"><thead><tr>';
+  header.forEach(function (h) { html += "<th>" + h + "</th>"; });
+  html += "</tr></thead><tbody>";
+  rows.forEach(function (r) {
+    html += "<tr>";
+    for (var i = 0; i < header.length; i++) {
+      html += "<td>" + (r[i] || "") + "</td>";
+    }
+    html += "</tr>";
+  });
+  html += "</tbody></table>";
+  tbl.innerHTML = html;
+};
+
+UTIL._serverPagingFetch = function (direction) {
+  var file = (document.getElementById("server_paging_file") || {}).value || "";
+  var doculects = (document.getElementById("server_paging_doculects") || {}).value || "";
+  var concepts = (document.getElementById("server_paging_concepts") || {}).value || "";
+  var columns = (document.getElementById("server_paging_columns") || {}).value || "";
+  var limit = parseInt((document.getElementById("server_paging_limit") || {}).value, 10);
+  if (isNaN(limit) || limit <= 0) { limit = 50; }
+  var offset = UTIL._serverPaging.offset;
+  if (direction === "next") { offset += limit; }
+  else if (direction === "prev") { offset = Math.max(0, offset - limit); }
+  else { offset = 0; }
+
+  var payload = {
+    file: file.trim(),
+    doculects: doculects ? doculects.split(/[,;]+/).map(function (x) { return x.trim(); }).filter(Boolean) : [],
+    concepts: concepts ? concepts.split(/[,;]+/).map(function (x) { return x.trim(); }).filter(Boolean) : [],
+    columns: columns ? columns.split(/[,;]+/).map(function (x) { return x.trim(); }).filter(Boolean) : [],
+    limit: limit,
+    offset: offset
+  };
+  UTIL._serverPaging.payload = payload;
+  document.getElementById("server_paging_info").innerText = "Loading...";
+  $.ajax({
+    async: true,
+    type: "POST",
+    url: "server_page.py",
+    dataType: "text",
+    data: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+    success: function (data) {
+      var resp;
+      try {
+        resp = JSON.parse(data);
+      } catch (e) {
+        resp = {error: "Invalid response."};
+      }
+      UTIL._serverPagingRender(resp);
+    },
+    error: function () {
+      UTIL._serverPagingRender({error: "Request failed."});
+    }
+  });
+};
+
+UTIL.serverPagingExport = function () {};
+UTIL.serverPagingDialog = function () {};
+
+/* === 语义预筛（调用后端批处理） === */
+UTIL._semanticBatchState = {tsv: null, header: [], filename: "semantic_filtered.tsv"};
+
+UTIL._guessMap = function (header, targets) {
+  var upperMap = {};
+  header.forEach(function (h) { upperMap[h.toUpperCase()] = h; });
+  for (var i = 0; i < targets.length; i++) {
+    var t = targets[i].toUpperCase();
+    if (upperMap[t]) { return upperMap[t]; }
+  }
+  return "";
+};
+
+UTIL._fillSemanticMapping = function (header) {
+  var opts = header.map(function (h) { return '<option value="'+h+'">'+h+'</option>'; }).join("");
+  ["sem_map_id","sem_map_doculect","sem_map_concept","sem_map_form"].forEach(function(id){var sel=document.getElementById(id); if(sel){sel.innerHTML='<option value=\"\">(不改名)</option>'+opts;}});
+  document.getElementById("sem_map_id").value = UTIL._guessMap(header, ["ID"]);
+  document.getElementById("sem_map_doculect").value = UTIL._guessMap(header, ["DOCULECT","TAXON","LANGUAGE"]);
+  document.getElementById("sem_map_concept").value = UTIL._guessMap(header, ["CONCEPT","GLOSS","MEANING"]);
+  document.getElementById("sem_map_form").value = UTIL._guessMap(header, ["FORM","IPA","TOKENS"]);
+};
+
+UTIL._renameHeader = function (tsv, mapping) {
+  var lines = tsv.split(/\r?\n/);
+  if (!lines.length) { return tsv; }
+  var header = lines[0].split("\t");
+  Object.keys(mapping).forEach(function (target) {
+    var src = mapping[target];
+    if (!src) { return; }
+    var idx = header.indexOf(src);
+    if (idx !== -1) { header[idx] = target; }
+  });
+  lines[0] = header.join("\t");
+  return lines.join("\n");
+};
+
+UTIL._loadTsvText = function (text, filename) {
+  reset();
+  CFG['filename'] = filename || "semantic_filtered.tsv";
+  CFG['load_new_file'] = true;
+  localStorage.filename = CFG['filename'];
+  STORE = text;
+  if (typeof resetComputeModalState === 'function') {
+    resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
+    resetComputeModalState('compute_alignments_modal', 'ialms_table', 'ialms_help');
+    resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+  }
+  ['view'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) { el.style.display = 'block'; }
+  });
+  ['first','previous','next','current'].forEach(function (id) {
+    $('#' + id).removeClass('unhidden');
+    $('#' + id).addClass('hidden');
+  });
+  var qlc = document.getElementById('qlc');
+  if (qlc) { qlc.innerHTML = ''; }
+  var fn = document.getElementById('filename');
+  if (fn) { fn.innerHTML = '&lt;' + CFG['filename'] + '&gt;'; }
+  try { showWLS(1); } catch (e) { console.error(e); }
+};
+
+UTIL.semanticBatchDialog = function () {
+  if (document.getElementById("semantic-batch-popup")) { return; }
+  var html = ''
+    + '<div class="editmode" id="semantic-batch-popup">'
+    + '  <div class="edit_links niceblue" style="width:860px;padding:10px;">'
+    + '    <p>语义预筛（Excel → TSV → 可加载）</p>'
+    + '    <div class="alignments" style="padding:10px;text-align:left;">'
+    + '      <label style="min-width:120px;display:inline-block;">Excel 文件路径</label>'
+    + '      <input id="sem_file" class="form-control textfield" style="width:80%;display:inline-block;" placeholder="C:/Users/.../文件.xlsx" />'
+    + '      <br><br>'
+    + '      <label style="min-width:120px;display:inline-block;">词义列名(可选)</label>'
+    + '      <input id="sem_gloss_name" class="form-control textfield" style="width:40%;display:inline-block;" placeholder="" />'
+    + '      <label style="min-width:120px;display:inline-block;">词义列序号</label>'
+    + '      <input id="sem_gloss_idx" type="number" value="4" class="form-control textfield" style="width:120px;display:inline-block;" />'
+    + '      <br><br>'
+    + '      <label style="min-width:120px;display:inline-block;">包含词(分号分隔)</label>'
+    + '      <input id="sem_include" class="form-control textfield" style="width:80%;display:inline-block;" placeholder="头; 头盖骨; cranium" />'
+    + '      <br><br>'
+    + '      <label style="min-width:120px;display:inline-block;">排除词(可选)</label>'
+    + '      <input id="sem_exclude" class="form-control textfield" style="width:80%;display:inline-block;" placeholder="芋头; 骨头; 念头" />'
+    + '      <br><br>'
+    + '      <label style="min-width:120px;display:inline-block;">预过滤字符(可选)</label>'
+    + '      <input id="sem_head_chars" class="form-control textfield" style="width:40%;display:inline-block;" placeholder="头首元颅" />'
+    + '      <label style="min-width:120px;display:inline-block;">阈值</label>'
+    + '      <input id="sem_threshold" type="number" step="0.01" value="0.18" class="form-control textfield" style="width:120px;display:inline-block;" />'
+    + '      <label style="margin-left:10px;">'
+    + '        <input id="sem_require_gpu" type="checkbox" /> 需要 GPU'
+    + '      </label>'
+    + '      <div style="margin-top:12px;">'
+    + '        <input class="btn btn-primary submit" type="button" onclick="UTIL.semanticBatchRun();" value="运行" /> '
+    + '        <input class="btn btn-primary submit" type="button" onclick="UTIL.semanticBatchDownload();" value="下载 TSV" /> '
+    + '        <input class="btn btn-primary submit" type="button" onclick="UTIL.semanticBatchLoad();" value="加载到 EDICTOR" /> '
+    + '        <input class="btn btn-primary submit" type="button" onclick="UTIL.semanticBatchClose();" value="关闭" />'
+    + '      </div>'
+    + '      <div id="sem_status" style="margin-top:10px;">待运行</div>'
+    + '      <div id="sem_mapping" style="margin-top:10px; display:none;">'
+    + '        <p>加载时列映射（可选，不改名则保持原列名）：</p>'
+    + '        <label style="min-width:100px;display:inline-block;">ID 列</label>'
+    + '        <select id="sem_map_id" class="form-control textfield" style="width:200px;display:inline-block;"></select><br>'
+    + '        <label style="min-width:100px;display:inline-block;">DOCULECT 列</label>'
+    + '        <select id="sem_map_doculect" class="form-control textfield" style="width:200px;display:inline-block;"></select><br>'
+    + '        <label style="min-width:100px;display:inline-block;">CONCEPT 列</label>'
+    + '        <select id="sem_map_concept" class="form-control textfield" style="width:200px;display:inline-block;"></select><br>'
+    + '        <label style="min-width:100px;display:inline-block;">FORM/IPA 列</label>'
+    + '        <select id="sem_map_form" class="form-control textfield" style="width:200px;display:inline-block;"></select>'
+    + '      </div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+  document.body.insertAdjacentHTML("beforeend", html);
+};
+
+UTIL.semanticBatchClose = function () {
+  var pop = document.getElementById("semantic-batch-popup");
+  if (pop) { pop.parentNode.removeChild(pop); }
+};
+
+UTIL.semanticBatchRun = function () {
+  var payload = {
+    file: (document.getElementById("sem_file") || {}).value || "",
+    gloss_col_name: (document.getElementById("sem_gloss_name") || {}).value || "",
+    gloss_col_index: (document.getElementById("sem_gloss_idx") || {}).value || 4,
+    include: (document.getElementById("sem_include") || {}).value || "",
+    exclude: (document.getElementById("sem_exclude") || {}).value || "",
+    head_chars: (document.getElementById("sem_head_chars") || {}).value || "",
+    threshold: (document.getElementById("sem_threshold") || {}).value || 0.18,
+    require_gpu: (document.getElementById("sem_require_gpu") || {}).checked
+  };
+  var status = document.getElementById("sem_status");
+  status.innerText = "运行中...";
+  $.ajax({
+    async: true,
+    type: "POST",
+    url: "semantic_batch.py",
+    dataType: "text",
+    data: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+    success: function (data) {
+      var resp;
+      try { resp = JSON.parse(data); } catch (e) { resp = {error: "响应格式错误"}; }
+      if (resp.error) { status.innerText = "失败：" + resp.error; return; }
+      UTIL._semanticBatchState.tsv = resp.tsv_content || "";
+      UTIL._semanticBatchState.header = resp.header || [];
+      UTIL._semanticBatchState.filename = (resp.tsv_path && resp.tsv_path.split(/[\\/]/).pop()) || "semantic_filtered.tsv";
+      status.innerText = "完成：保留 " + resp.kept + "/" + resp.total + " 行，设备 " + resp.device + "，已生成 " + (resp.tsv_path || "（内存）");
+      var mapDiv = document.getElementById("sem_mapping");
+      if (mapDiv) { mapDiv.style.display = "block"; }
+      UTIL._fillSemanticMapping(UTIL._semanticBatchState.header);
+    },
+    error: function () {
+      status.innerText = "请求失败。";
+    }
+  });
+};
+
+UTIL.semanticBatchDownload = function () {
+  if (!UTIL._semanticBatchState.tsv) { alert("暂无可下载数据，请先运行。"); return; }
+  var blob = new Blob([UTIL._semanticBatchState.tsv], {type: "text/plain;charset=utf-8"});
+  var link = document.createElement("a");
+  var url = window.URL.createObjectURL(blob);
+  link.href = url;
+  link.download = UTIL._semanticBatchState.filename || "semantic_filtered.tsv";
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(function () {
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+};
+
+UTIL.semanticBatchLoad = function () {
+  if (!UTIL._semanticBatchState.tsv) { alert("暂无可加载数据，请先运行。"); return; }
+  var mapping = {
+    "ID": (document.getElementById("sem_map_id") || {}).value || "",
+    "DOCULECT": (document.getElementById("sem_map_doculect") || {}).value || "",
+    "CONCEPT": (document.getElementById("sem_map_concept") || {}).value || "",
+    "FORM": (document.getElementById("sem_map_form") || {}).value || ""
+  };
+  var text = UTIL._renameHeader(UTIL._semanticBatchState.tsv, mapping);
+  UTIL._loadTsvText(text, UTIL._semanticBatchState.filename || "semantic_filtered.tsv");
+  alert("已加载到 EDICTOR，可继续分词/对齐/同源检测。");
+};
+
 UTIL.ensureColumn = function (name) {
   name = (name || "").trim();
   if (!name) { return -1; }
@@ -137,6 +528,65 @@ UTIL.ensureColumn = function (name) {
     CFG.basics.push(upper);
   }
   return WLS.columns[upper];
+};
+
+/* 读取正字法表头（如果有），返回列名数组 */
+UTIL.getOrthographyHeader = function (text) {
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i += 1) {
+    var line = lines[i].trim();
+    if (!line) { continue; }
+    var parts = line.split(/\t/).map(function (cell) {
+      return cell.replace(/^\uFEFF/, "").trim();
+    });
+    if (parts[0] && parts[0].toLowerCase().indexOf("grapheme") !== -1) {
+      return parts;
+    }
+    break;
+  }
+  return [];
+};
+
+/* Resolve slash-separated choices per grapheme, prompting once per grapheme. */
+UTIL.resolveOrthographyChoices = function (text) {
+  var lines = text.split(/\r?\n/);
+  var choices = {};
+  var out = [];
+  for (var i = 0; i < lines.length; i += 1) {
+    var line = lines[i];
+    if (!line.trim()) { out.push(line); continue; }
+    var parts = line.split(/\t/);
+    if (parts[0] && parts[0].toLowerCase().indexOf("grapheme") !== -1) {
+      out.push(line);
+      continue;
+    }
+    if (parts.length < 2 || parts[1].indexOf("/") === -1) {
+      out.push(line);
+      continue;
+    }
+    var grapheme = parts[0].trim();
+    var options = parts[1].split("/").map(function (opt) {
+      return opt.trim();
+    }).filter(function (opt) { return opt; });
+    if (!options.length) {
+      out.push(line);
+      continue;
+    }
+    if (!choices.hasOwnProperty(grapheme)) {
+      var msg = "Multiple mappings for " + grapheme + ":\n";
+      for (var j = 0; j < options.length; j += 1) {
+        msg += (j + 1) + ") " + options[j] + "\n";
+      }
+      var pick = prompt(msg + "Choose 1-" + options.length, "1");
+      if (pick === null) { return null; }
+      var idx = parseInt(pick, 10);
+      if (!idx || idx < 1 || idx > options.length) { idx = 1; }
+      choices[grapheme] = options[idx - 1];
+    }
+    parts[1] = choices[grapheme];
+    out.push(parts.join("\t"));
+  }
+  return out.join("\n");
 };
 
 /* 解析正字法文件文本，返回 {grapheme: ipa} 映射 */
@@ -291,7 +741,17 @@ UTIL.handleOrthoUpload = function (evt) {
   var reader = new FileReader();
   reader.onload = function (e) {
     var text = e.target.result;
-    var profile = UTIL.parseOrthographyProfile(text);
+    var textForProfile = text;
+    if (text.indexOf("/") !== -1) {
+      var choose = confirm("正字法文件含有“/”多候选映射，是否为每个 grapheme 选择一个结果并应用到全表？");
+      if (choose) {
+        var resolved = UTIL.resolveOrthographyChoices(text);
+        if (resolved === null) { return; }
+        textForProfile = resolved;
+      }
+    }
+    var profile = UTIL.parseOrthographyProfile(textForProfile);
+    var profileHeader = UTIL.getOrthographyHeader(textForProfile);
     if (!profile.length) {
       alert("正字法文件为空或格式不符（需 TSV: Grapheme\\tIPA）");
       return;
@@ -315,6 +775,70 @@ UTIL.handleOrthoUpload = function (evt) {
     var dest = prompt("分词结果写入的目标列名（默认 TOKENS）", "TOKENS");
     if (!dest) { return; }
     var destIdx = UTIL.ensureColumn(dest);
+
+    if (CFG && CFG.python) {
+      var tokColumn = "Grapheme";
+      if (profileHeader.length > 1) {
+        tokColumn = profileHeader.indexOf("IPA") !== -1 ? "IPA" : profileHeader[1];
+      }
+      var tokPrompt = prompt("Tokenizer 输出列名（正字法文件表头）", tokColumn);
+      if (!tokPrompt) { return; }
+      tokColumn = tokPrompt;
+      var items = [];
+      for (var key in WLS) {
+        if (!isNaN(key)) {
+          items.push([key, WLS[key][srcIdx] || ""]);
+        }
+      }
+      $.ajax({
+        async: true,
+        type: "POST",
+        url: "orthography_tokenize.py",
+        dataType: "json",
+        data: {
+          payload: JSON.stringify({
+            profile: textForProfile,
+            values: items,
+            column: tokColumn
+          })
+        },
+        success: function (resp) {
+          if (!resp || resp.error) {
+            alert("Tokenizer 失败：" + (resp && resp.error ? resp.error : "unknown"));
+            return;
+          }
+          var changed = 0;
+          resp.tokens.forEach(function (pair) {
+            var idx = pair[0];
+            var tok = pair[1] || "";
+            if (typeof WLS[idx] !== "undefined") {
+              WLS[idx][destIdx] = tok;
+              changed += 1;
+            }
+          });
+
+          /* 更新 tokens 索引 */
+          CFG._segments = destIdx;
+          CFG.tokens = header[destIdx];
+          showWLS(getCurrent());
+          var msg = "分词完成（Tokenizer），写入列 " + dest + "，共处理 " + changed + " 行。";
+          var saveNow = confirm(msg + "\n\n选择“确定”立即覆盖保存当前文件（需要本地运行并使用本地文件）；选择“取消”保留内存结果，稍后可用下载按钮导出。");
+          if (saveNow) {
+            if (typeof saveFileInPython === "function") {
+              saveFileInPython();
+            } else {
+              alert("未找到本地保存函数，请用浏览器下载按钮手动保存。");
+            }
+          } else {
+            alert("已保留内存结果，可用下载/保存按钮手动导出。");
+          }
+        },
+        error: function (xhr, status, err) {
+          alert("Tokenizer 请求失败：" + (err || status || "unknown"));
+        }
+      });
+      return;
+    }
 
     var changed = 0;
     for (var key in WLS) {

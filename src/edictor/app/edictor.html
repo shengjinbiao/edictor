@@ -72,7 +72,7 @@ EDICTOR main menu
               </li>
               <li>
                 <a id="toggle_settings" 
-                  onclick="loadAjax(event,'sortable', 'settings', 'help col-sm-4');">
+                  onclick="openSettingsModal(event);">
                   <span class="glyphicon glyphicon-ok" style="display:none"></span>
                   <span class="glyphicon glyphicon-remove"></span>
                   SETTINGS
@@ -144,27 +144,30 @@ EDICTOR main menu
             </a>
             <ul class="dropdown-menu" role="menu">
               <li>
-                <a id="toggle_icognates" onclick="loadAjax(event, 'sortable', 'icognates', 'largebox');">
+                <a id="toggle_icognates" onclick="openComputeCognatesModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
                   COGNATE SETS
                 </a>
               </li>
               <li>
-                <a id="toggle_ialms" onclick="loadAjax(event, 'sortable', 'ialms', 'largebox');">
+                <a id="toggle_ialms" onclick="openComputeAlignmentsModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
                   ALIGNMENTS
                 </a>
               </li>
               <li>
-                <a id="toggle_ipatterns" onclick="loadAjax(event, 'sortable', 'ipatterns', 'largebox');">
+                <a id="toggle_ipatterns" onclick="openComputePatternsModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
                   CORRESPONDENCE PATTERNS
                 </a>
               </li>
             </ul>
+          </li>
+          <li>
+            <a id="toggle_workflow" onclick="openWorkflowModal(event);">WORKFLOW</a>
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
@@ -198,6 +201,13 @@ EDICTOR main menu
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
                   COGNATES
+                </a>
+              </li>
+              <li>
+                <a id="toggle_soundchange" onclick="openSoundChangeModal(event);">
+                  <span class="glyphicon glyphicon-remove"></span>
+                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
+                  SOUND CHANGE CHAIN
                 </a>
               </li>
             </ul>
@@ -266,6 +276,8 @@ EDICTOR main menu
               <select class="multiselect" multiple id="select_concepts" title="filter concepts"></select>
               <select class="multiselect" multiple id="select_columns" title="filter columns"></select>
               <button class="btn-primary btn mright titled submit3" onclick="applyFilter();showWLS(getCurrent());">OK</button>
+              <button class="btn-primary btn mright titled submit3" title="semantic concept filter" onclick="UTIL.semanticFilterDialog();">SEMANTIC</button>
+              <button class="btn-primary btn mright titled submit3" title="语义预筛（Excel→TSV）" onclick="UTIL.semanticBatchDialog();">语义预筛</button>
               <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
                 title="从指定列提取符号，生成 Grapheme-IPA 正字法文件，下载后可校对再分词。"
                 onclick="UTIL.generateOrthography();">生成正字法文件</button>
@@ -325,120 +337,6 @@ EDICTOR main menu
           Open the file.
         </div>
       </li>
-      <li id="settings" class="help col-sm-4" style="display:none">
-        <a name="settings_anchor" style="visibility:hidden;position:relative;top:-100px">EDICTOR</a>        
-        <span class="main_handle pull-left"></span>
-        <button type="button" onclick="$('#toggle_settings > span').toggle(); $('#settings').toggle();window.location.href='#top';" class="pull-right close" style="margin-left:5px"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
-        <h3>Settings</h3>
-        <div>
-          <button class="btn btn-primary pull-left submit3" style="margin-right: 5px;margin-bottom:20px" onclick="UTIL.refresh_settings();">REFRESH SETTINGS</button>
-          <div>
-            <table class="settings border">
-              <tr>
-                <th style="padding:5px" title="Determine how many rows of a wordlist you want to see at once.">Preview</th>
-                <td>
-                  <input id="settings_preview" class="form-control textfield" style="width:110px" value="10" type="number">    
-                </td>
-              </tr>
-              <tr title="Change or set your preferred column to store and deal with cognate assignments.">
-                <th>Cognate IDs</th><td>
-                  <input  id="settings_cognates" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                placeholder="cognate id" value="" type="text">
-                </td></tr>
-                <tr title="Change or set your preferred column to store and deal with partial cognates."><th>Partial Cognates</th>
-                  <td>
-                    <input  id="settings_roots" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                               placeholder="partial cognate ID column" value="" type="text">
-                  </td></tr>
-                  <tr title="Change or set your preferred column to store and deal with sound sequences.">
-                    <th>Tokens</th><td >
-                      <input  id="settings_tokens" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                  placeholder="tokens column" value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Change or set your preferred column to store and deal with alignments.">
-                    <th>Alignments</th><td >
-                      <input  id="settings_alignments" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                      placeholder="alignment column" value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Select your preferred settings for colexifications.">
-                    <th> Morphology and Colexification Mode</th>
-                    <td>
-                      <input id="mmodef" name="morphology_mode" onchange="CFG['_morphology_mode'] = 'full';" type="radio"> FULL 
-                      <input id="mmodep" name="morphology_mode" onchange="CFG['_morphology_mode'] = 'partial';" type="radio"> PARTIAL     
-                    </td>
-                  </tr>
-                  <tr id="settings_with_lingpy" style="display:none" title="Select which method to use for the computation of cognates, alignments, and correspondences.">
-                    <th>Computation Mode</th>
-                    <td>
-                      <input name="computation_mode" checked="" onchange="CFG.with_lingpy = true;" type="radio"> LingPy / LingRex     
-                      <input name="computation_mode" onchange="CFG.with_lingpy = false" type="radio"> EDICTOR 
-                    </td>
-                  </tr>
-                  <tr title="Change or set your preferred column to store and deal with morpheme data.">
-                    <th>Morphemes</th><td>
-                      <input  id="settings_morphemes" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                     placeholder="morpheme annotation column" value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide in which column you want to store your sources.">
-                    <th>Patterns</th><td>
-                      <input  id="settings_patterns" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                    placeholder="pattern annotation column" value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide in which column the source information should be directly linked with EvoBib.">
-                    <th>Sources</th><td>
-                      <input  id="settings_sources" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                   placeholder="source" value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide which phonetic segments should be colored in Dolgopolsky sound class style.">
-                    <th>Phonetic Entries</th><td>
-                      <input  id="settings_highlight" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                     placeholder="tokens, segments, etc." value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide in which columns X-SAMPA should be expected as input and automatically converted to IPA.">
-                    <th>X-SAMPA</th><td>
-                      <input  id="settings_sampa" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                 placeholder="ipa, transcription, tokens, etc." value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Determine the basic order of your doculects">
-                    <th>Doculect Order</th>
-                    <td>
-                      <input  id="settings_doculectorder" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                         placeholder="languageA, languageB, etc." value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide in which column you want to store your sources.">
-                    <th>SOURCE</th><td>
-                      <input  id="settings_sources" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                   placeholder="source, references, etc." value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide which field should add additional possibilities for formatted text.">
-                    <th>NOTE</th><td>
-                      <input  id="settings_note" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                placeholder="note, comment, etc." value="" type="text">
-                    </td>
-                  </tr>
-                  <tr title="Decide which doculect represents a proto-language.">
-                    <th>PROTO</th><td>
-                      <input  id="settings_proto" class="col-sm-3 form-control textfield titled" style="width:250px"
-                                                                                                 placeholder="Proto-Klingon, etc." value="" type="text">
-                    </td>
-                  </tr>
-
-
-            </table>
-
-          </div>
-        </div>
-
-      </li>
       <li class="colx" id="welcome" style="width:100%;padding-right:10px;display:block;">
 
         <div class="colx welcome">
@@ -480,7 +378,412 @@ EDICTOR main menu
   </div>
   <div id="#data_saved" style="color:white;font-size:12px">Data has not yet been saved.</div>
 
-<div id="popup_background" class="popup_background"></div>
+  <div id="settings_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="settings_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="settings_modal_label">Settings</h3>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-sm-4 settings-nav">
+              <ul id="settings_modal_nav" class="nav nav-pills nav-stacked">
+                <li><a href="#settings_display_section">Display</a></li>
+                <li><a href="#settings_cognates_section">Cognates and Morphology</a></li>
+                <li><a href="#settings_columns_section">Data Columns</a></li>
+                <li><a href="#settings_phonetics_section">Phonetics</a></li>
+                <li><a href="#settings_metadata_section">Metadata and Ordering</a></li>
+              </ul>
+            </div>
+            <div class="col-sm-8 settings-content">
+              <div class="settings-scroll">
+                <button class="btn btn-primary submit3" style="margin-bottom:15px" onclick="UTIL.refresh_settings();">REFRESH SETTINGS</button>
+
+                <div class="settings-section" id="settings_display_section">
+                  <h4>Display</h4>
+                  <table class="settings settings-table" style="margin-bottom:15px">
+                    <tr>
+                      <th style="padding:5px" title="Determine how many rows of a wordlist you want to see at once.">Preview</th>
+                      <td>
+                        <input id="settings_preview" class="form-control textfield" style="width:110px" value="10" type="number">
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="settings-section" id="settings_cognates_section">
+                  <h4>Cognates and Morphology</h4>
+                  <table class="settings settings-table" style="margin-bottom:15px">
+                    <tr title="Change or set your preferred column to store and deal with cognate assignments.">
+                      <th>Cognate IDs</th><td>
+                        <input id="settings_cognates" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="cognate id" value="" type="text">
+                      </td></tr>
+                    <tr title="Change or set your preferred column to store and deal with partial cognates."><th>Partial Cognates</th>
+                      <td>
+                        <input id="settings_roots" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="partial cognate ID column" value="" type="text">
+                      </td></tr>
+                    <tr title="Select your preferred settings for colexifications.">
+                      <th> Morphology and Colexification Mode</th>
+                      <td>
+                        <input id="mmodef" name="morphology_mode" onchange="CFG['_morphology_mode'] = 'full';" type="radio"> FULL
+                        <input id="mmodep" name="morphology_mode" onchange="CFG['_morphology_mode'] = 'partial';" type="radio"> PARTIAL
+                      </td>
+                    </tr>
+                    <tr id="settings_with_lingpy" style="display:none" title="Select which method to use for the computation of cognates, alignments, and correspondences.">
+                      <th>Computation Mode</th>
+                      <td>
+                        <input name="computation_mode" checked="" onchange="CFG.with_lingpy = true;" type="radio"> LingPy / LingRex
+                        <input name="computation_mode" onchange="CFG.with_lingpy = false" type="radio"> EDICTOR
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="settings-section" id="settings_columns_section">
+                  <h4>Data Columns</h4>
+                  <table class="settings settings-table" style="margin-bottom:15px">
+                    <tr title="Change or set your preferred column to store and deal with sound sequences.">
+                      <th>Tokens</th><td >
+                        <input id="settings_tokens" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="tokens column" value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Change or set your preferred column to store and deal with alignments.">
+                      <th>Alignments</th><td >
+                        <input id="settings_alignments" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="alignment column" value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Change or set your preferred column to store and deal with morpheme data.">
+                      <th>Morphemes</th><td>
+                        <input id="settings_morphemes" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="morpheme annotation column" value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Decide in which column you want to store your sources.">
+                      <th>Patterns</th><td>
+                        <input id="settings_patterns" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="pattern annotation column" value="" type="text">
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="settings-section" id="settings_phonetics_section">
+                  <h4>Phonetics</h4>
+                  <table class="settings settings-table" style="margin-bottom:15px">
+                    <tr title="Decide which phonetic segments should be colored in Dolgopolsky sound class style.">
+                      <th>Phonetic Entries</th><td>
+                        <input id="settings_highlight" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="tokens, segments, etc." value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Decide in which columns X-SAMPA should be expected as input and automatically converted to IPA.">
+                      <th>X-SAMPA</th><td>
+                        <input id="settings_sampa" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="ipa, transcription, tokens, etc." value="" type="text">
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="settings-section" id="settings_metadata_section">
+                  <h4>Metadata and Ordering</h4>
+                  <table class="settings settings-table">
+                    <tr title="Decide in which column the source information should be directly linked with EvoBib.">
+                      <th>Sources</th><td>
+                        <input id="settings_sources" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="source" value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Determine the basic order of your doculects">
+                      <th>Doculect Order</th>
+                      <td>
+                        <input id="settings_doculectorder" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="languageA, languageB, etc." value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Decide in which column you want to store your sources.">
+                      <th>SOURCE</th><td>
+                        <input id="settings_sources" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="source, references, etc." value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Decide which field should add additional possibilities for formatted text.">
+                      <th>NOTE</th><td>
+                        <input id="settings_note" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="note, comment, etc." value="" type="text">
+                      </td>
+                    </tr>
+                    <tr title="Decide which doculect represents a proto-language.">
+                      <th>PROTO</th><td>
+                        <input id="settings_proto" class="col-sm-3 form-control textfield titled" style="width:250px"
+                               placeholder="Proto-Klingon, etc." value="" type="text">
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="compute_cognates_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_cognates_modal_label">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="compute_cognates_modal_label">Compute Cognate Sets</h3>
+        </div>
+        <div class="modal-body" id="compute_cognates_modal_body">
+          <div class="btn-group" style="margin-bottom:10px">
+            <label class="btn btn-primary mright" for="compute_cognate_threshold">THR.</label>
+            <input id="compute_cognate_threshold" class="btn btn-primary mright"
+              style="width:80px" type="number" step="0.05" min="0.05" max="0.95" value="0.45">
+            <button type="button" class="btn btn-primary mright" onclick="submitComputeCognates();">SUBMIT</button>
+            <button type="button" class="btn btn-primary" title="show help"
+              onclick="UTIL.show_help('icognates','icognates_table','compute_cognates_modal_body');">
+              <span class="glyphicon glyphicon-question-sign"></span>
+            </button>
+          </div>
+          <div id="icognates_table" style="display:block"></div>
+          <div id="icognates_help" class="help-message" style="display:none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="compute_alignments_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_alignments_modal_label">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="compute_alignments_modal_label">Compute Alignments</h3>
+        </div>
+        <div class="modal-body" id="compute_alignments_modal_body">
+          <div class="btn-group" style="margin-bottom:10px">
+            <button type="button" class="btn btn-primary mright" onclick="submitComputeAlignments();">SUBMIT</button>
+            <button type="button" class="btn btn-primary" title="show help"
+              onclick="UTIL.show_help('ialms','ialms_table','compute_alignments_modal_body');">
+              <span class="glyphicon glyphicon-question-sign"></span>
+            </button>
+          </div>
+          <div id="ialms_table" style="display:block"></div>
+          <div id="ialms_help" class="help-message" style="display:none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="compute_patterns_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_patterns_modal_label">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="compute_patterns_modal_label">Compute Correspondence Patterns</h3>
+        </div>
+        <div class="modal-body" id="compute_patterns_modal_body">
+          <div class="btn-group" style="margin-bottom:10px">
+            <button type="button" class="btn btn-primary mright" onclick="submitComputePatterns();">SUBMIT</button>
+            <button type="button" class="btn btn-primary" title="show help"
+              onclick="UTIL.show_help('ipatterns','ipatterns_table','compute_patterns_modal_body');">
+              <span class="glyphicon glyphicon-question-sign"></span>
+            </button>
+          </div>
+          <div id="ipatterns_table" style="display:block"></div>
+          <div id="ipatterns_help" class="help-message" style="display:none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="workflow_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="workflow_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="workflow_modal_label">工作流 / Workflow：加载 → 分词 → 同源词</h3>
+        </div>
+        <div class="modal-body" id="workflow_modal_body">
+          <div id="workflow_step_indicator" style="margin-bottom:10px;font-weight:bold">Step 1 / 5</div>
+
+          <div class="workflow-step" data-step="1">
+            <h4>1. 加载数据文件 / Load data</h4>
+            <p>意义：把你的词表数据加载到 EDICTOR，之后才能进行分词、同源词和对齐分析。</p>
+            <p>(Purpose: load your TSV wordlist to start segmentation and analysis.)</p>
+            <button type="button" class="btn btn-primary mright" onclick="workflowOpenFilePicker();">打开文件 / Open File</button>
+            <button type="button" class="btn btn-default" onclick="toggleDisplay(event,'filedisplay');">打开文件面板 / File Panel</button>
+          </div>
+
+          <div class="workflow-step" data-step="2" style="display:none">
+            <h4>2. 设定核心列 / Set core columns</h4>
+            <p>意义：确认 Tokens、COGID/COGIDS、ALIGNMENT、PATTERNS 等列名，保证后续结果写回正确列。</p>
+            <p>(Purpose: ensure output columns are correctly defined.)</p>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenSettings();">打开设置 / Settings</button>
+          </div>
+
+          <div class="workflow-step" data-step="3" style="display:none">
+            <h4>3. 分词 / Tokenize</h4>
+            <p>意义：把记音切分为音段 Tokens，这是对齐和比较的基础。</p>
+            <p>(Purpose: segment transcriptions into tokens for alignment and comparison.)</p>
+            <button type="button" class="btn btn-primary mright" onclick="workflowTokenizeIPA();">IPA → Tokens（ipa2tokens）</button>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenOrthoUpload();">上传正字法并分词 / Orthography</button>
+          </div>
+
+          <div class="workflow-step" data-step="4" style="display:none">
+            <h4>4. 检查 Tokens 列 / Verify tokens</h4>
+            <p>意义：检查分词结果是否写入正确列，确保后续算法使用正确 Tokens。</p>
+            <p>(Purpose: confirm tokens are stored in the right column.)</p>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenSettings();">检查列设置 / Review</button>
+          </div>
+
+          <div class="workflow-step" data-step="5" style="display:none">
+            <h4>5. 计算同源词 / Compute cognates</h4>
+            <p>意义：在分词基础上自动划分同源词集，为对齐和对应规则提供基础。</p>
+            <p>(Purpose: compute cognate sets to support alignments and correspondence patterns.)</p>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenComputeCognates();">计算同源词 / Cognates</button>
+            <p style="margin-top:10px">后续可在 COMPUTE 里计算对齐与对应模式。</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" onclick="workflowPrev();">Back</button>
+          <button type="button" class="btn btn-primary" onclick="workflowNext();">Next</button>
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button id="workflow_resume" type="button" class="btn btn-primary"
+    style="position:fixed;bottom:20px;right:20px;display:none;z-index:1051"
+    onclick="workflowResume(false);">Resume Workflow</button>
+
+  <div id="soundchange_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="soundchange_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <h3 id="soundchange_modal_label">音变链分析 / Sound Change Chain</h3>
+        </div>
+        <div class="modal-body" id="soundchange_modal_body">
+          <div class="row">
+            <div class="col-md-8">
+          <div style="margin-bottom:10px">
+            <label style="min-width:110px;display:inline-block">概念 / Concept</label>
+            <input id="soundchange_concept" class="form-control textfield" style="width:240px;display:inline-block" list="soundchange_concept_list" placeholder="输入概念 / type concept" />
+            <datalist id="soundchange_concept_list"></datalist>
+            <label style="min-width:120px;display:inline-block;margin-left:10px">Top N 音段</label>
+            <input id="soundchange_topn" type="number" class="form-control textfield" style="width:90px;display:inline-block" value="20" min="5" max="80" />
+            <label style="min-width:120px;display:inline-block;margin-left:10px">最小计数</label>
+            <input id="soundchange_mincount" type="number" class="form-control textfield" style="width:90px;display:inline-block" value="2" min="1" />
+            <button type="button" class="btn btn-primary mleft" onclick="SND.run();">运行 / Run</button>
+          </div>
+          <div id="soundchange_summary" style="margin-bottom:8px;color:#333"></div>
+          <div style="margin-bottom:8px">
+            <button type="button" class="btn btn-primary mright" onclick="SND.showSegmentGraph();">音段网络 / Segment Graph</button>
+            <button type="button" class="btn btn-primary" onclick="SND.showLanguageGraph();">语言网络 / Language Graph</button>
+          </div>
+          <h4 style="margin-top:10px">对应关系列表 / Correspondence List</h4>
+          <div id="soundchange_list"></div>
+          <h4 style="margin-top:10px">对应热力表 / Heatmap</h4>
+          <div id="soundchange_heatmap"></div>
+            </div>
+            <div class="col-md-4">
+              <div style="border-left:1px solid #ddd;padding-left:12px">
+                <h4>方法说明 / Method Notes</h4>
+                <div id="soundchange_notes" style="font-size:12px;line-height:1.5;color:#333">
+                  <p>用途：从指定概念的同源词对齐中统计音段对应关系。</p>
+                  <p>输入：概念、COGID、ALIGNMENT/TOKENS 列。</p>
+                  <p>输出：对应列表、热力表、音段网络、语言网络。</p>
+                </div>
+                <h4>运行参数 / Parameters</h4>
+                <div id="soundchange_params" style="font-size:12px;color:#333"></div>
+                <h4>日志 / Log</h4>
+                <div id="soundchange_log" style="font-size:12px;color:#555;max-height:260px;overflow:auto;border:1px solid #eee;padding:6px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="popup_background" class="popup_background"></div>
+<style>
+  #settings_modal .settings-nav {
+    border-right: 1px solid #ddd;
+  }
+  #settings_modal .settings-content {
+    border-left: 1px solid #ddd;
+  }
+  #settings_modal .settings-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 10px;
+  }
+  #settings_modal .settings-section {
+    border-top: 1px solid #ddd;
+    padding-top: 12px;
+    margin-top: 12px;
+  }
+  #settings_modal .settings-section:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  #settings_modal .settings {
+    float: none;
+    width: 100%;
+  }
+  #settings_modal .settings-table {
+    border: 0;
+    margin-left: 0;
+    padding: 0;
+  }
+  #settings_modal .settings-table th,
+  #settings_modal .settings-table td {
+    border: 0 !important;
+    padding: 6px 4px;
+  }
+  #settings_modal #settings_modal_nav li a {
+    display: block;
+    padding: 10px 15px;
+    color: #333;
+    text-decoration: none;
+  }
+</style>
 <script src="js/generic/highlight.js"></script>
 <script src="js/generic/sampa.js"></script>
 <script src="js/generic/edit.js"></script>
@@ -509,6 +812,7 @@ EDICTOR main menu
 <script src="js/segments.js"></script>
 <script src="js/glosses.js"></script>
 <script src="js/wordlist.js"></script>
+<script src="js/soundchange.js"></script>
 <script src="js/starter.js"></script>
 
 </body>

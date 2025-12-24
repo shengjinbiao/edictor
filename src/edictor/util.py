@@ -8,11 +8,13 @@ import json
 import codecs
 import getpass
 import signal
+import re
 
 from urllib.request import urlopen
 
 from pathlib import Path
 from datetime import datetime
+from importlib.machinery import SourceFileLoader
 
 DATA = {
     "js": "text/javascript",
@@ -27,6 +29,29 @@ DATA = {
     "json": "text/plain; charset=utf-8",
     "config": "config.json",
 }
+
+SEMANTIC_MODELS = {}
+
+
+def _split_terms(text):
+    if not text:
+        return []
+    text = text.replace("\n", ";")
+    parts = re.split(r"[;,|]+", text)
+    out = []
+    for part in parts:
+        part = part.strip()
+        if part:
+            out.append(part)
+    return out
+
+
+def _get_semantic_model(name, device):
+    key = (name, device)
+    if key not in SEMANTIC_MODELS:
+        from sentence_transformers import SentenceTransformer
+        SEMANTIC_MODELS[key] = SentenceTransformer(name, device=device)
+    return SEMANTIC_MODELS[key]
 
 
 def opendb(path, conf):
@@ -452,6 +477,695 @@ def alignments(s, query, qtype):
         out,
         content_type="text/plain; charset=utf-8",
         content_disposition='attachment; filename="triples.tsv"'
+    )
+
+
+def semantic_filter(s, query, qtype):
+    args = {"payload": ""}
+    handle_args(args, query, qtype)
+    if not args["payload"]:
+        send_response(
+            s,
+            json.dumps({"error": "Missing payload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        payload = json.loads(urllib.parse.unquote_plus(args["payload"]))
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Invalid payload.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    concepts = payload.get("concepts", [])
+    include = payload.get("include", "")
+    exclude = payload.get("exclude", "")
+    threshold = payload.get("threshold", 0.18)
+    model_name = payload.get(
+        "model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+    require_gpu = bool(payload.get("require_gpu", False))
+
+    pos_terms = _split_terms(include)
+    neg_terms = _split_terms(exclude)
+
+    if not pos_terms:
+        send_response(
+            s,
+            json.dumps({"error": "No include terms provided."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        threshold = 0.18
+
+    try:
+        import torch
+        from sentence_transformers import util as st_util
+    except Exception as exc:  # pragma: no cover
+        send_response(
+            s,
+            json.dumps({"error": "Missing dependencies.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if require_gpu and device != "cuda":
+        device = "cpu"
+
+    try:
+        model = _get_semantic_model(model_name, device)
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to load model.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    if not concepts:
+        send_response(
+            s,
+            json.dumps({"error": "No concepts provided."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    pos_emb = model.encode(
+        pos_terms, convert_to_tensor=True, normalize_embeddings=True
+    ).mean(dim=0, keepdim=True)
+    pos_emb = st_util.normalize_embeddings(pos_emb)
+
+    if neg_terms:
+        neg_emb = model.encode(
+            neg_terms, convert_to_tensor=True, normalize_embeddings=True
+        ).mean(dim=0, keepdim=True)
+        neg_emb = st_util.normalize_embeddings(neg_emb)
+    else:
+        neg_emb = None
+
+    batch_size = 256 if device == "cuda" else 64
+    chunk_size = 5000 if device == "cuda" else 2000
+    hard_excludes = [t.lower() for t in neg_terms if t]
+    kept = []
+    kept_scores = []
+
+    for i in range(0, len(concepts), chunk_size):
+        chunk = concepts[i:i + chunk_size]
+        concept_embs = model.encode(
+            chunk,
+            convert_to_tensor=True,
+            normalize_embeddings=True,
+            batch_size=batch_size,
+            show_progress_bar=False,
+        )
+
+        scores = st_util.cos_sim(concept_embs, pos_emb).squeeze(1)
+        if neg_emb is not None:
+            scores = scores - st_util.cos_sim(concept_embs, neg_emb).squeeze(1)
+
+        for concept, score in zip(chunk, scores.cpu().tolist()):
+            low = concept.lower()
+            if hard_excludes and any(t in low for t in hard_excludes):
+                continue
+            if score >= threshold:
+                kept.append(concept)
+                kept_scores.append(score)
+
+    response = {
+        "concepts": kept,
+        "threshold": threshold,
+        "device": device,
+        "gpu_available": device == "cuda",
+        "total": len(concepts),
+        "kept": len(kept),
+    }
+    send_response(
+        s,
+        json.dumps(response),
+        content_type="application/json; charset=utf-8",
+    )
+
+
+def orthography_tokenize(s, query, qtype):
+    args = {"payload": ""}
+    handle_args(args, query, qtype)
+    payload = _parse_payload(args)
+    if not payload:
+        send_response(
+            s,
+            json.dumps({"error": "Missing payload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    profile_text = payload.get("profile", "")
+    values = payload.get("values", [])
+    column = payload.get("column", "Grapheme")
+    if not profile_text or not values:
+        send_response(
+            s,
+            json.dumps({"error": "Missing profile or values."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        from segments.tokenizer import Tokenizer
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Tokenizer unavailable.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    tmp_path = None
+    try:
+        import tempfile
+        with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", suffix=".tsv", delete=False
+        ) as fp:
+            fp.write(profile_text)
+            tmp_path = fp.name
+
+        tk = Tokenizer(tmp_path)
+        out = []
+        for item in values:
+            idx = None
+            val = ""
+            if isinstance(item, (list, tuple)):
+                if len(item) >= 2:
+                    idx, val = item[0], item[1]
+                elif len(item) == 1:
+                    idx = item[0]
+            elif isinstance(item, dict):
+                idx = item.get("id")
+                val = item.get("value", "")
+            else:
+                val = item
+            tok = tk(str(val or ""), column=column)
+            out.append([idx, tok])
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Tokenizer failed.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+    finally:
+        if tmp_path and Path(tmp_path).exists():
+            os.remove(tmp_path)
+
+    send_response(
+        s,
+        json.dumps({"tokens": out, "column": column, "count": len(out)}),
+        content_type="application/json; charset=utf-8",
+    )
+
+
+def _parse_payload(args):
+    if not args.get("payload"):
+        return {}
+    try:
+        return json.loads(urllib.parse.unquote_plus(args["payload"]))
+    except Exception:
+        return {}
+
+
+def _split_sem_terms(text):
+    if not text:
+        return []
+    text = text.replace("\n", ";")
+    parts = []
+    for part in text.split(";"):
+        part = part.strip()
+        if part:
+            parts.append(part)
+    return parts
+
+
+def _compute_suffix_penalty(text):
+    """Return a small penalty if the string looks like suffixal/bleached usage."""
+    if not isinstance(text, str):
+        return 0.0
+    penalty = 0.0
+    lower = text.lower()
+    if any(k in lower for k in ("suffix", "affix", "classifier", "particle", "diminutive")):
+        penalty = max(penalty, 0.25)
+    suffix_chars = {"头", "首", "元", "颅", "儿", "兒", "子"}
+    non_head_roots = {"芋", "藤", "骨", "念"}
+    for idx, ch in enumerate(text):
+        if ch in suffix_chars and idx > 0:
+            penalty = max(penalty, 0.25)
+            break
+    if any(root in text for root in non_head_roots):
+        penalty = max(penalty, 0.2)
+    return penalty
+
+
+def semantic_batch(s, query, qtype):
+    """
+    Run semantic filtering headless (Excel in, TSV out, optional load).
+    """
+    args = {"payload": ""}
+    handle_args(args, query, qtype)
+    payload = _parse_payload(args)
+    if not payload:
+        send_response(
+            s,
+            json.dumps({"error": "Missing payload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    path_str = payload.get("file") or payload.get("path")
+    if not path_str:
+        send_response(
+            s,
+            json.dumps({"error": "Missing file path."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd().joinpath(path)
+    if not path.exists():
+        send_response(
+            s,
+            json.dumps({"error": "File not found.", "detail": str(path)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    gloss_col_name = payload.get("gloss_col_name", "").strip()
+    gloss_col_index = payload.get("gloss_col_index", None)
+    try:
+        gloss_col_index = int(gloss_col_index) if gloss_col_index not in (None, "", False) else 4
+    except Exception:
+        gloss_col_index = 4
+    include_text = payload.get("include", "") or ""
+    exclude_text = payload.get("exclude", "") or ""
+    head_chars = payload.get("head_chars", "") or ""
+    try:
+        threshold = float(payload.get("threshold", 0.18) or 0.18)
+    except Exception:
+        threshold = 0.18
+    require_gpu = bool(payload.get("require_gpu", False))
+
+    pos_terms = _split_sem_terms(include_text)
+    neg_terms = _split_sem_terms(exclude_text)
+    if not pos_terms:
+        send_response(
+            s,
+            json.dumps({"error": "Include terms are required."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        import pandas as pd
+        import torch
+        from sentence_transformers import SentenceTransformer, util as st_util
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Missing dependencies.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        df = pd.read_excel(path)
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to read Excel.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    if gloss_col_name:
+        if gloss_col_name not in df.columns:
+            send_response(
+                s,
+                json.dumps({"error": "Gloss column not found.", "detail": gloss_col_name}),
+                content_type="application/json; charset=utf-8",
+            )
+            return
+        gloss_col = gloss_col_name
+    else:
+        if gloss_col_index < 0 or gloss_col_index >= len(df.columns):
+            send_response(
+                s,
+                json.dumps({"error": "Gloss column index out of range."}),
+                content_type="application/json; charset=utf-8",
+            )
+            return
+        gloss_col = df.columns[gloss_col_index]
+
+    if head_chars:
+        char_mask = df.apply(
+            lambda col: col.astype(str).str.contains(f"[{head_chars}]", na=False)
+        )
+        candidate_rows = char_mask.any(axis=1)
+    else:
+        candidate_rows = pd.Series(True, index=df.index)
+    df_candidates = df[candidate_rows].copy()
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if require_gpu and device != "cuda":
+        send_response(
+            s,
+            json.dumps({"error": "CUDA is not available on this system."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        model = SentenceTransformer(
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", device=device
+        )
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to load model.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    pos_emb = model.encode(pos_terms, convert_to_tensor=True, normalize_embeddings=True).mean(
+        dim=0, keepdim=True
+    )
+    pos_emb = st_util.normalize_embeddings(pos_emb)
+    if neg_terms:
+        neg_emb = model.encode(neg_terms, convert_to_tensor=True, normalize_embeddings=True).mean(
+            dim=0, keepdim=True
+        )
+        neg_emb = st_util.normalize_embeddings(neg_emb)
+    else:
+        neg_emb = None
+
+    gloss_texts = df_candidates[gloss_col].fillna("").astype(str).tolist()
+    batch_size = 256 if device == "cuda" else 64
+    gloss_embs = model.encode(
+        gloss_texts,
+        convert_to_tensor=True,
+        normalize_embeddings=True,
+        batch_size=batch_size,
+        show_progress_bar=False,
+    )
+    sim_pos = st_util.cos_sim(gloss_embs, pos_emb).squeeze(1)
+    if neg_emb is not None:
+        sim_neg = st_util.cos_sim(gloss_embs, neg_emb).squeeze(1)
+        semantic_score = (sim_pos - sim_neg).cpu().numpy()
+    else:
+        semantic_score = sim_pos.cpu().numpy()
+
+    df["semantic_score"] = None
+    df["suffix_penalty"] = None
+    df["final_score"] = None
+
+    df.loc[candidate_rows, "semantic_score"] = semantic_score
+    df.loc[candidate_rows, "suffix_penalty"] = df_candidates[gloss_col].apply(
+        _compute_suffix_penalty
+    )
+    df.loc[candidate_rows, "final_score"] = (
+        df.loc[candidate_rows, "semantic_score"] - df.loc[candidate_rows, "suffix_penalty"]
+    )
+
+    df["maybe_head_semantics"] = False
+    df.loc[candidate_rows, "maybe_head_semantics"] = (
+        df.loc[candidate_rows, "final_score"] >= threshold
+    )
+
+    stem = path.stem
+    scored_path = path.with_name(f"{stem}_semantic_scored.xlsx")
+    filtered_path_xlsx = path.with_name(f"{stem}_semantic_filtered.xlsx")
+    filtered_path_tsv = path.with_name(f"{stem}_semantic_filtered.tsv")
+    try:
+        df.to_excel(scored_path, index=False)
+        df[df["maybe_head_semantics"]].to_excel(filtered_path_xlsx, index=False)
+    except Exception:
+        pass
+
+    filtered_df = df[df["maybe_head_semantics"]]
+    try:
+        filtered_df.to_csv(filtered_path_tsv, sep="\t", index=False)
+    except Exception:
+        filtered_path_tsv = ""
+
+    tsv_content = filtered_df.to_csv(sep="\t", index=False)
+
+    kept = int(df["maybe_head_semantics"].sum())
+    total = int(candidate_rows.sum())
+    response = {
+        "kept": kept,
+        "total": total,
+        "threshold": threshold,
+        "device": device,
+        "tsv_path": str(filtered_path_tsv),
+        "scored_path": str(scored_path),
+        "filtered_xlsx": str(filtered_path_xlsx),
+        "header": list(filtered_df.columns),
+        "tsv_content": tsv_content,
+    }
+    send_response(
+        s,
+        json.dumps(response),
+        content_type="application/json; charset=utf-8",
+    )
+
+
+def _read_tsv_header(path):
+    with codecs.open(path, "r", "utf-8") as f:
+        line = f.readline()
+    if not line:
+        return []
+    return line.rstrip("\n\r").split("\t")
+
+
+def _iter_tsv_rows(path, header_len):
+    with codecs.open(path, "r", "utf-8") as f:
+        _ = f.readline()
+        for line in f:
+            cells = line.rstrip("\n\r").split("\t")
+            if len(cells) < header_len:
+                cells += [""] * (header_len - len(cells))
+            elif len(cells) > header_len:
+                cells = cells[:header_len]
+            yield cells
+
+
+def server_page(s, query, qtype):
+    """
+    Stream a page of rows from a TSV without loading everything into memory.
+    """
+    args = {"payload": ""}
+    handle_args(args, query, qtype)
+    payload = _parse_payload(args)
+    if not payload:
+        send_response(
+            s,
+            json.dumps({"error": "Missing payload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    path_str = payload.get("file") or payload.get("path")
+    if not path_str:
+        send_response(
+            s,
+            json.dumps({"error": "Missing file path."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd().joinpath(path)
+    if not path.exists():
+        send_response(
+            s,
+            json.dumps({"error": "File not found.", "detail": str(path)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        header = _read_tsv_header(path)
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to read header.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    limit = int(payload.get("limit", 50) or 50)
+    offset = int(payload.get("offset", 0) or 0)
+    columns = payload.get("columns") or []
+    columns = [c.strip() for c in columns if c and str(c).strip()]
+    column_map = {name.upper(): idx for idx, name in enumerate(header)}
+    col_indices = [column_map.get(c.upper()) for c in columns] if columns else list(range(len(header)))
+    col_indices = [idx for idx in col_indices if idx is not None]
+
+    # simple filters: doculects, concepts; match case-insensitively
+    doculects = set([d.lower() for d in payload.get("doculects", []) if d])
+    concepts = set([c.lower() for c in payload.get("concepts", []) if c])
+
+    def match(row):
+        if doculects:
+            tidx = column_map.get("DOCULECT")
+            if tidx is None or row[tidx].lower() not in doculects:
+                return False
+        if concepts:
+            cidx = column_map.get("CONCEPT")
+            if cidx is None or row[cidx].lower() not in concepts:
+                return False
+        return True
+
+    total = 0
+    rows = []
+    try:
+        for cells in _iter_tsv_rows(path, len(header)):
+            if not match(cells):
+                continue
+            if total >= offset and len(rows) < limit:
+                rows.append([cells[i] for i in col_indices])
+            total += 1
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to stream rows.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    response = {
+        "header": [header[i] for i in col_indices],
+        "rows": rows,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "file": str(path),
+    }
+    send_response(
+        s,
+        json.dumps(response),
+        content_type="application/json; charset=utf-8",
+    )
+
+
+def server_export(s, query, qtype):
+    """
+    Export filtered TSV (server-side) without loading in front-end.
+    Supports optional offset/limit to export only a slice of rows.
+    """
+    args = {"payload": ""}
+    handle_args(args, query, qtype)
+    payload = _parse_payload(args)
+    if not payload:
+        send_response(
+            s,
+            json.dumps({"error": "Missing payload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    path_str = payload.get("file") or payload.get("path")
+    if not path_str:
+        send_response(
+            s,
+            json.dumps({"error": "Missing file path."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd().joinpath(path)
+    if not path.exists():
+        send_response(
+            s,
+            json.dumps({"error": "File not found.", "detail": str(path)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    try:
+        header = _read_tsv_header(path)
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to read header.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    columns = payload.get("columns") or []
+    columns = [c.strip() for c in columns if c and str(c).strip()]
+    column_map = {name.upper(): idx for idx, name in enumerate(header)}
+    col_indices = [column_map.get(c.upper()) for c in columns] if columns else list(range(len(header)))
+    col_indices = [idx for idx in col_indices if idx is not None]
+
+    doculects = set([d.lower() for d in payload.get("doculects", []) if d])
+    concepts = set([c.lower() for c in payload.get("concepts", []) if c])
+
+    offset = int(payload.get("offset", 0) or 0)
+    export_limit = payload.get("export_limit", None)
+    if export_limit is None:
+        export_limit = payload.get("limit", None)
+    export_limit = int(export_limit) if export_limit not in (None, "", False) else None
+
+    def match(row):
+        if doculects:
+            tidx = column_map.get("DOCULECT")
+            if tidx is None or row[tidx].lower() not in doculects:
+                return False
+        if concepts:
+            cidx = column_map.get("CONCEPT")
+            if cidx is None or row[cidx].lower() not in concepts:
+                return False
+        return True
+
+    lines = []
+    header_out = [header[i] for i in col_indices]
+    lines.append("\t".join(header_out))
+    matched = 0
+    try:
+        for cells in _iter_tsv_rows(path, len(header)):
+            if not match(cells):
+                continue
+            if matched < offset:
+                matched += 1
+                continue
+            if export_limit is not None and (matched - offset) >= export_limit:
+                break
+            matched += 1
+            lines.append("\t".join([cells[i] for i in col_indices]))
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Failed to export.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    content = "\n".join(lines)
+    send_response(
+        s,
+        content,
+        content_type="text/plain; charset=utf-8",
+        content_disposition='attachment; filename="filtered.tsv"',
     )
 
 

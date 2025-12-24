@@ -469,6 +469,216 @@ function loadAjax(event, where, what, classes) {
 
 }
 
+function openSettingsModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  if ($('#settings_modal').hasClass('in')) {
+    return;
+  }
+  UTIL.load_settings();
+  $('#toggle_settings > span').toggle();
+  $('#settings_modal').modal('show');
+}
+
+function openComputeCognatesModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  if ($('#compute_cognates_modal').hasClass('in')) {
+    return;
+  }
+  var input = document.getElementById('compute_cognate_threshold');
+  if (input && typeof CFG.cognate_threshold !== 'undefined') {
+    input.value = CFG.cognate_threshold;
+  }
+  $('#compute_cognates_modal').modal('show');
+}
+
+function openComputeAlignmentsModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  if ($('#compute_alignments_modal').hasClass('in')) {
+    return;
+  }
+  $('#compute_alignments_modal').modal('show');
+}
+
+function openComputePatternsModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  if ($('#compute_patterns_modal').hasClass('in')) {
+    return;
+  }
+  $('#compute_patterns_modal').modal('show');
+}
+
+function submitComputeCognates() {
+  var input = document.getElementById('compute_cognate_threshold');
+  if (input && input.value) {
+    CFG.cognate_threshold = input.value;
+  }
+  if (CFG.with_lingpy) {
+    COGNACY.lingpy_cognates();
+  } else {
+    COGNACY.compute_cognates();
+  }
+}
+
+function submitComputeAlignments() {
+  if (CFG.with_lingpy) {
+    ALIGN.lingpy_alignments();
+  } else {
+    ALIGN.automated_alignments();
+  }
+}
+
+function submitComputePatterns() {
+  if (CFG.with_lingpy) {
+    CFG['_recompute_patterns'] = true;
+    PATS.lingrex_patterns();
+    CFG['_recompute_patterns'] = false;
+  } else {
+    CFG['_recompute_patterns'] = true;
+    PATS.compute_patterns();
+    CFG['recompute_patterns'] = false;
+  }
+}
+
+function resetComputeModalState(modalId, tableId, helpId) {
+  var modalEl = document.getElementById(modalId);
+  if (modalEl) {
+    modalEl.classList.remove('in');
+    modalEl.style.display = 'none';
+    modalEl.setAttribute('aria-hidden', 'true');
+  }
+  var modal = $('#' + modalId);
+  if (modal.length) {
+    modal.modal('hide');
+  }
+  $('.modal-backdrop').remove();
+  $('body').removeClass('modal-open');
+  var table = document.getElementById(tableId);
+  if (table) { table.style.display = 'block'; }
+  var help = document.getElementById(helpId);
+  if (help) { help.style.display = 'none'; }
+}
+
+var WORKFLOW = { step: 1, total: 5, paused: false };
+
+function openWorkflowModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  WORKFLOW.step = 1;
+  showWorkflowStep(WORKFLOW.step);
+  WORKFLOW.paused = false;
+  var resume = document.getElementById('workflow_resume');
+  if (resume) { resume.style.display = 'none'; }
+  $('#workflow_modal').modal('show');
+}
+
+function showWorkflowStep(step) {
+  var indicator = document.getElementById('workflow_step_indicator');
+  if (indicator) {
+    indicator.textContent = 'Step ' + step + ' / ' + WORKFLOW.total;
+  }
+  var steps = document.querySelectorAll('#workflow_modal .workflow-step');
+  for (var i = 0; i < steps.length; i += 1) {
+    var s = parseInt(steps[i].getAttribute('data-step'), 10);
+    steps[i].style.display = (s === step) ? 'block' : 'none';
+  }
+}
+
+function workflowNext() {
+  if (WORKFLOW.step < WORKFLOW.total) {
+    WORKFLOW.step += 1;
+    showWorkflowStep(WORKFLOW.step);
+  }
+}
+
+function workflowPrev() {
+  if (WORKFLOW.step > 1) {
+    WORKFLOW.step -= 1;
+    showWorkflowStep(WORKFLOW.step);
+  }
+}
+
+function workflowOpenFilePicker() {
+  var input = document.getElementById('file');
+  if (input) {
+    workflowPause();
+    input.click();
+  } else {
+    fakeAlert('File picker is not available in this view.');
+  }
+}
+
+function workflowOpenSettings() {
+  workflowPause();
+  openSettingsModal();
+}
+
+function workflowOpenOrthoUpload() {
+  var input = document.getElementById('orthofile_upload');
+  if (input) {
+    workflowPause();
+    input.click();
+  } else {
+    fakeAlert('Orthography upload is not available in this view.');
+  }
+}
+
+function workflowTokenizeIPA() {
+  if (!WLS || !WLS.header) {
+    fakeAlert('Load a TSV file first.');
+    return;
+  }
+  var header = WLS.header || [];
+  var defaultSrc = header.indexOf('IPA') !== -1 ? 'IPA' : (header.indexOf('FORM') !== -1 ? 'FORM' : header[0]);
+  var src = prompt('Select source column for IPA tokenization', defaultSrc);
+  if (!src) { return; }
+  var srcIdx = header.indexOf(src);
+  if (srcIdx === -1) {
+    fakeAlert('Column not found: ' + src);
+    return;
+  }
+  var dest = prompt('Tokens column name', 'TOKENS');
+  if (!dest) { return; }
+  var destIdx = UTIL.ensureColumn(dest);
+  if (destIdx === -1) {
+    fakeAlert('Could not create column: ' + dest);
+    return;
+  }
+  var changed = 0;
+  for (var key in WLS) {
+    if (!isNaN(key)) {
+      var val = WLS[key][srcIdx] || '';
+      var tokens = UTIL.ipaToTokens(val);
+      WLS[key][destIdx] = tokens.join(' ');
+      changed += 1;
+    }
+  }
+  CFG._segments = destIdx;
+  CFG.tokens = header[destIdx];
+  showWLS(getCurrent());
+  fakeAlert('Tokenization complete. Updated ' + changed + ' rows.');
+}
+
+function workflowOpenComputeCognates() {
+  workflowPause();
+  openComputeCognatesModal();
+}
+
+function workflowPause() {
+  WORKFLOW.paused = true;
+  $('#workflow_modal').modal('hide');
+  var resume = document.getElementById('workflow_resume');
+  if (resume) { resume.style.display = 'block'; }
+}
+
+function workflowResume(advance) {
+  if (advance) {
+    workflowNext();
+  }
+  WORKFLOW.paused = false;
+  var resume = document.getElementById('workflow_resume');
+  if (resume) { resume.style.display = 'none'; }
+  $('#workflow_modal').modal('show');
+}
+
 /* helper function for URL creation */
 function makeMyURL() {
   var base_url = "https://edictor.org?";
@@ -718,3 +928,47 @@ function startEverything () {
 
 //-> console.log('starter loaded now');
 startEverything();
+
+$(function() {
+  $('#settings_modal').on('hidden.bs.modal', function() {
+    $('#toggle_settings > span').toggle();
+    if (WORKFLOW.paused) {
+      var cont = confirm('继续工作流下一步吗？');
+      if (cont) {
+        workflowResume(true);
+      }
+    }
+  });
+
+  resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
+  resetComputeModalState('compute_alignments_modal', 'ialms_table', 'ialms_help');
+  resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+
+  $('#compute_cognates_modal').on('hidden.bs.modal', function() {
+    resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
+    if (WORKFLOW.paused) {
+      var cont = confirm('继续工作流下一步吗？');
+      if (cont) {
+        workflowResume(true);
+      }
+    }
+  });
+  $('#compute_alignments_modal').on('hidden.bs.modal', function() {
+    resetComputeModalState('compute_alignments_modal', 'ialms_table', 'ialms_help');
+    if (WORKFLOW.paused) {
+      var cont = confirm('继续工作流下一步吗？');
+      if (cont) {
+        workflowResume(true);
+      }
+    }
+  });
+  $('#compute_patterns_modal').on('hidden.bs.modal', function() {
+    resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+    if (WORKFLOW.paused) {
+      var cont = confirm('继续工作流下一步吗？');
+      if (cont) {
+        workflowResume(true);
+      }
+    }
+  });
+});

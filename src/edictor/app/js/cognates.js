@@ -499,12 +499,36 @@ function partialCognateIdentifier(cogids) {
 
 const COGNACY = {};
 
+function resolveCognateIndex() {
+  var idx = (CFG._morphology_mode === "partial") ? CFG._roots : CFG._cognates;
+  if (typeof idx !== "number" || idx < 0) {
+    if (CFG._morphology_mode !== "partial" && typeof CFG._fidx === "number" && CFG._fidx > -1) {
+      CFG._cognates = CFG._fidx;
+      idx = CFG._cognates;
+    } else {
+      var name = (CFG._morphology_mode === "partial") ? "COGIDS" : "COGID";
+      var alt = WLS.header.indexOf(name);
+      if (alt !== -1) {
+        if (CFG._morphology_mode === "partial") {
+          CFG._roots = alt;
+          resetRootFormat(WLS.header[alt]);
+        } else {
+          CFG._cognates = alt;
+          resetFormat(WLS.header[alt]);
+        }
+        idx = alt;
+      }
+    }
+  }
+  return idx;
+}
+
 COGNACY.lingpy_cognates = () => {
   "use strict";
   const date = new Date().toString();
   const feedback = document.getElementById("icognates_table");
-  const cognates = CFG._morphology_mode === "partial" ? CFG._roots : CFG._cognates;
-  if (cognates === -1) {
+  const cognates = resolveCognateIndex();
+  if (typeof cognates !== "number" || cognates < 0) {
     fakeAlert("You must specify a column to store the cognate judgments in the SETTINGS menu.");
     return;
   }

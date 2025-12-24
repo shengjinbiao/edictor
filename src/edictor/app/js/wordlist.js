@@ -582,9 +582,13 @@ function csvToArrays(allText, separator, comment, keyval) {
       document.getElementById('toggle_filedisplay').onclick({"preventDefault": function(x){return x}}, 'filedisplay');
     }
     for (var i=0, display; display=CFG.display[i]; i++) {
-      if (display != 'filedisplay'){
-        document.getElementById('toggle_'+display).onclick({"preventDefault": function(x){return x}}, 'sortable', display, 'colx largebox');
+      if (display == 'filedisplay') {
+        continue;
       }
+      if (display == 'settings' || display == 'icognates' || display == 'ialms' || display == 'ipatterns') {
+        continue;
+      }
+      document.getElementById('toggle_'+display).onclick({"preventDefault": function(x){return x}}, 'sortable', display, 'colx largebox');
     }
   }
 }
@@ -1973,7 +1977,8 @@ function refreshFile(){
   }
   CFG.display = [];
   for (i = 0; i < CFG.loaded_files.length; i += 1) {
-    if (document.getElementById(CFG.loaded_files[i]).style.display != 'none'){
+    var el = document.getElementById(CFG.loaded_files[i]);
+    if (el && el.style.display != 'none') {
       CFG.display.push(CFG.loaded_files[i]);
     }
   }
@@ -2297,8 +2302,29 @@ function finishAddLine(new_idx) {
 /* save file */
 function saveFile() {
   refreshFile();
+  var filename = CFG['filename'] || "edictor.tsv";
+  if (filename.slice(-4) !== ".tsv") {
+    filename += ".tsv";
+  }
   var blob = new Blob([STORE], {type: 'text/plain;charset=utf-8'});
-  saveAs(blob, CFG['filename']);
+  if (typeof saveAs === "function") {
+    saveAs(blob, filename);
+    return;
+  }
+  try {
+    var link = document.createElement("a");
+    var url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 0);
+  } catch (e) {
+    fakeAlert("Download failed: " + e);
+  }
 }
 
 

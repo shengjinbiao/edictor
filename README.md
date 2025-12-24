@@ -10,6 +10,24 @@ In order to get started with the local application, you should make sure to have
 - 同源计算自动创建 COGID：未设置同源列时会提示并创建 `COGID/COGIDS`。
 - 音系分析增强：声母/韵母/声调频次，同音表（声韵/声韵调），支持中文列名/大小写不敏感。
 - 方言点选择下拉自动填充（从 DOCULECT 列），选中后统计仅作用于当前方言点。
+- 语义概念筛选（本地服务）
+    EDICTOR 提供语义概念筛选功能，用于查找与目标语义相关的概念集合（如“head”），同时排除语义虚化或不相关的用法（如“taro”“suffix”）。
+    这有助于在人工核查前缩小同源候选集合。
+
+    工作原理：
+
+    使用 Sentence-Transformers 模型将概念嵌入到向量空间中。
+    将“包含”项取均值形成正向“目标”向量；可选的“排除”项形成负向向量。
+    为每个概念计算语义分数（与正向向量的余弦相似度减去与负向向量的相似度）。
+    分数超过阈值的概念会被选中，用于过滤词表。
+    Sentence-Transformers 的关键作用在于：它把短语（概念标签或释义）映射为稠密向量，并用余弦距离衡量语义相似性，从而实现“按语义”而非“按字符”的筛选。
+
+    该筛选在本地 Python 服务端运行。如果有 CUDA GPU，可在对话框中强制使用 GPU；否则默认使用 CPU。
+- 计算面板改成弹窗
+   Workflow 向导与暂停/恢复
+   分词流程两条路径（ipa2tokens / tokenizer）
+   正字法歧义全局选择
+   音变链分析与可视化测试
 
 ## Virtual Environments
 
@@ -66,6 +84,29 @@ pip install "edictor[lingpy]"
 ```
 
 This will not only add support to all functionalities provided by LingPy (improved automatic cognate detection, improved alignments) and [LingRex](https://pypi.org/project/lingrex) (improved correspondence pattern detection), but also provide access to the `wordlist` command from the EDICTOR 3 commandline (see below for details). In many terminals, you can run the same command without quotation marks.
+
+## Semantic concept filter (local server)
+
+EDICTOR includes a semantic concept filter for finding concept sets related to a target meaning
+(e.g., "head") while excluding semantic-light or irrelevant uses (e.g., "taro", "suffix").
+This is useful for narrowing candidate cognate sets before manual inspection.
+
+How it works:
+
+1. Concepts are embedded into a vector space using a Sentence-Transformers model.
+2. The include terms are averaged into a positive "target" vector; optional exclude terms
+   form a negative vector.
+3. Each concept gets a semantic score (cosine similarity to positive minus similarity
+   to negative).
+4. Concepts above a threshold are selected and used to filter the wordlist.
+
+Sentence-Transformers provides the key capability here: it maps short phrases (concept
+labels or glosses) to dense vectors where semantic similarity is measured by cosine
+distance. This makes it possible to select meanings by semantics rather than by
+character matching.
+
+The filter runs on the local Python server. If a CUDA-enabled GPU is available, you can
+require GPU usage from the dialog; otherwise the filter runs on CPU.
 
 ## Getting Started on Windows
 

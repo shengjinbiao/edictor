@@ -1,11 +1,12 @@
 from http.server import SimpleHTTPRequestHandler
 
 from edictor.util import (
-        DATA, get_distinct, get_columns, 
+        DATA, get_distinct, get_columns,
         check, configuration,
         file_type, file_name, file_handler, triples, download,
         update, serve_base, new_id, modifications, alignments,
-        cognates, patterns, quit
+        cognates, patterns, semantic_filter, semantic_batch, server_page, server_export,
+        orthography_tokenize, quit
         )
 
 CONF = configuration()
@@ -56,6 +57,16 @@ class Handler(SimpleHTTPRequestHandler):
             cognates(s, post_data_bytes, "POST")
         if fn == "/patterns.py":
             patterns(s, post_data_bytes, "POST")
+        if fn == "/semantic_filter.py":
+            semantic_filter(s, post_data_bytes, "POST")
+        if fn == "/semantic_batch.py":
+            semantic_batch(s, post_data_bytes, "POST")
+        if fn == "/orthography_tokenize.py":
+            orthography_tokenize(s, post_data_bytes, "POST")
+        if fn == "/server_page.py":
+            server_page(s, post_data_bytes, "POST")
+        if fn == "/server_export.py":
+            server_export(s, post_data_bytes, "POST")
         if fn == "/quit.py":
             quit(s)
 
@@ -82,5 +93,13 @@ class Handler(SimpleHTTPRequestHandler):
             new_id(s, s.path, "GET", CONF)
         if fn == "/triples/modifications.py":
             modifications(s, s.path, "GET", CONF)
+        if fn == "/semantic_filter.py":
+            semantic_filter(s, s.path, "GET")
+        if fn == "/semantic_batch.py":
+            semantic_batch(s, s.path, "GET")
+        if fn == "/server_page.py":
+            server_page(s, s.path, "GET")
+        if fn == "/server_export.py":
+            server_export(s, s.path, "GET")
         if fn == "/quit.py":
             quit(s)

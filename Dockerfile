@@ -1,5 +1,5 @@
-# Lightweight image to run EDICTOR locally in a container
-FROM python:3.11-slim
+# CUDA-enabled image to run EDICTOR locally in a container
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /app
 
