@@ -367,6 +367,7 @@ UTIL._loadTsvText = function (text, filename) {
     resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
     resetComputeModalState('compute_alignments_modal', 'ialms_table', 'ialms_help');
     resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+    resetComputeModalState('compute_distances_modal', 'idistances_table', 'idistances_help');
   }
   ['view'].forEach(function (id) {
     var el = document.getElementById(id);
@@ -392,6 +393,10 @@ UTIL.semanticBatchDialog = function () {
     + '    <div class="alignments" style="padding:10px;text-align:left;">'
     + '      <label style="min-width:120px;display:inline-block;">Excel 文件路径</label>'
     + '      <input id="sem_file" class="form-control textfield" style="width:80%;display:inline-block;" placeholder="C:/Users/.../文件.xlsx" />'
+    + '      <input class="btn btn-primary submit" type="button" style="margin-left:6px;"'
+    + '        onclick="document.getElementById(\'sem_file_upload\').click();" value="Choose File" />'
+    + '      <input id="sem_file_upload" type="file" style="display:none"'
+    + '        accept=".xlsx,.xls,.csv,.tsv" onchange="UTIL.semanticBatchUpload(event);" />'
     + '      <br><br>'
     + '      <label style="min-width:120px;display:inline-block;">词义列名(可选)</label>'
     + '      <input id="sem_gloss_name" class="form-control textfield" style="width:40%;display:inline-block;" placeholder="" />'
@@ -433,6 +438,38 @@ UTIL.semanticBatchDialog = function () {
     + '  </div>'
     + '</div>';
   document.body.insertAdjacentHTML("beforeend", html);
+};
+
+UTIL.semanticBatchUpload = function (evt) {
+  var file = (evt.target.files || [])[0];
+  if (!file) { return; }
+  var status = document.getElementById("sem_status");
+  if (status) { status.innerText = "Uploading..."; }
+  var formData = new FormData();
+  formData.append("file", file);
+  $.ajax({
+    async: true,
+    type: "POST",
+    url: "upload_semantic.py",
+    data: formData,
+    processData: false,
+    contentType: false,
+    success: function (data) {
+      var resp;
+      try { resp = JSON.parse(data); } catch (e) { resp = {error: "Invalid response"}; }
+      if (resp.error) {
+        if (status) { status.innerText = "Upload failed: " + resp.error; }
+        return;
+      }
+      var input = document.getElementById("sem_file");
+      if (input) { input.value = resp.path || ""; }
+      if (status) { status.innerText = "Uploaded to server: " + (resp.path || ""); }
+    },
+    error: function () {
+      if (status) { status.innerText = "Upload failed."; }
+    }
+  });
+  evt.target.value = "";
 };
 
 UTIL.semanticBatchClose = function () {
@@ -948,6 +985,7 @@ UTIL.settings = {
   '_patterns':-1, /* patterns of sound correspondences */
   'highlight': ['TOKENS','ALIGNMENT', 'SEGMENTS'],
   'sampa' : ['IPA','TOKENS', 'SEGMENTS', 'TRANSCRIPTION'],
+  'sound_class_model': 'dolgo',
   'css': ["menu:show","database:hide"],
   'status' : {},
   'server_side_files' : [],
@@ -987,6 +1025,33 @@ UTIL.settings = {
   'loaded_files': ['filedisplay', 'settings']
 }
 
+UTIL.apply_sound_class_model = function(model) {
+  if (typeof SOUND_CLASS_MODELS === "undefined") {
+    return;
+  }
+  var selected = model || 'dolgo';
+  if (!(selected in SOUND_CLASS_MODELS)) {
+    selected = 'dolgo';
+  }
+  var mapping = SOUND_CLASS_MODELS[selected];
+  if (!mapping) {
+    return;
+  }
+  var merged = {};
+  if (typeof SOUND_CLASS_META !== "undefined") {
+    merged._tones = SOUND_CLASS_META._tones;
+    merged._diacritics = SOUND_CLASS_META._diacritics;
+    merged._vowels = SOUND_CLASS_META._vowels;
+  }
+  for (var key in mapping) {
+    if (Object.prototype.hasOwnProperty.call(mapping, key)) {
+      merged[key] = mapping[key];
+    }
+  }
+  DOLGO = merged;
+  CFG.sound_class_model = selected;
+};
+
 UTIL.settable = {
   "lists" : [
     "highlight", 
@@ -1011,7 +1076,8 @@ UTIL.settable = {
     "_almcol",
     "filename",
     "navbar",
-    "_morphology_mode"
+    "_morphology_mode",
+    "sound_class_model"
   ],
   "integers" : [
     "preview"
@@ -1043,7 +1109,7 @@ UTIL.open_remote_dbase = function(dbase, frame) {
 UTIL.load_settings = function() {
 
   var settables = ['preview', 'cognates', 'alignments', 'morphemes', 'roots', 'highlight', 'sampa',
-    'sources', 'note', 'proto', 'patterns', 'doculectorder', 'tokens'];
+    'sound_class_model', 'sources', 'note', 'proto', 'patterns', 'doculectorder', 'tokens'];
   var entries = {};
   var i, settable;
   var val;
@@ -1055,6 +1121,9 @@ UTIL.load_settings = function() {
 
   /* start with preview */
   entries['preview'].value = CFG['preview'];
+  if (entries['sound_class_model']) {
+    entries['sound_class_model'].value = CFG['sound_class_model'] || 'dolgo';
+  }
   console.log("entries here", entries);
 
   /* now add cognates for fun */
@@ -1222,8 +1291,8 @@ UTIL.upload_submit = function() {
 
 UTIL.refresh_settings = function() {
 
-  var settables = ['preview', 'cognates', 'alignments', 'morphemes', 'roots', 'highlight', 'sampa', 
-    'sources', 'note', 'proto', 'doculectorder', 'tokens', 'patterns'];
+  var settables = ['preview', 'cognates', 'alignments', 'morphemes', 'roots', 'highlight', 'sampa',
+    'sound_class_model', 'sources', 'note', 'proto', 'doculectorder', 'tokens', 'patterns'];
   var entries = {};
   var i, settable;
   var stax, names;
@@ -1300,6 +1369,9 @@ UTIL.refresh_settings = function() {
     }
     CFG[entry] = new_vals;
     entries[entry].value = new_vals.join(',');
+  }
+  if (entries['sound_class_model']) {
+    UTIL.apply_sound_class_model(entries['sound_class_model'].value || 'dolgo');
   }
   showWLS(getCurrent());
 };

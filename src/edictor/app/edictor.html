@@ -164,6 +164,13 @@ EDICTOR main menu
                   CORRESPONDENCE PATTERNS
                 </a>
               </li>
+              <li>
+                <a id="toggle_idistances" onclick="openComputeDistancesModal(event);">
+                  <span class="glyphicon glyphicon-remove"></span>
+                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
+                  DISTANCES AND TREES
+                </a>
+              </li>
             </ul>
           </li>
           <li>
@@ -489,6 +496,15 @@ EDICTOR main menu
                                placeholder="ipa, transcription, tokens, etc." value="" type="text">
                       </td>
                     </tr>
+                    <tr title="Select the sound class model used for alignments and highlighting. Changing this requires re-alignment for existing results.">
+                      <th>Sound Class Model</th><td>
+                        <select id="settings_sound_class_model" class="col-sm-3 form-control textfield titled" style="width:250px">
+                          <option value="dolgo">Dolgopolsky</option>
+                          <option value="sca">SCA</option>
+                          <option value="asjp">ASJP</option>
+                        </select>
+                      </td>
+                    </tr>
                   </table>
                 </div>
 
@@ -539,8 +555,8 @@ EDICTOR main menu
     </div>
   </div>
 
-  <div id="compute_cognates_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_cognates_modal_label">
-    <div class="modal-dialog" role="document">
+  <div id="compute_cognates_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="compute_cognates_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header">
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -569,8 +585,8 @@ EDICTOR main menu
     </div>
   </div>
 
-  <div id="compute_alignments_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_alignments_modal_label">
-    <div class="modal-dialog" role="document">
+  <div id="compute_alignments_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="compute_alignments_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header">
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -596,8 +612,8 @@ EDICTOR main menu
     </div>
   </div>
 
-  <div id="compute_patterns_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="compute_patterns_modal_label">
-    <div class="modal-dialog" role="document">
+  <div id="compute_patterns_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="compute_patterns_modal_label">
+    <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header">
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -623,6 +639,61 @@ EDICTOR main menu
     </div>
   </div>
 
+  <div id="compute_distances_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="compute_distances_modal_label">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h3 id="compute_distances_modal_label">Compute Distances and Trees</h3>
+      </div>
+      <div class="modal-body">
+        <table class="settings settings-table" style="margin-bottom:15px">
+          <tr title="Select the distance method.">
+            <th>Distance Method</th>
+            <td>
+              <select id="compute_distance_method" class="form-control textfield" style="width:250px">
+                <option value="edit-dist">Edit distance</option>
+                <option value="turchin">Turchin</option>
+                <option value="sca">SCA</option>
+                <option value="lexstat">LexStat</option>
+              </select>
+            </td>
+          </tr>
+          <tr title="Select alignment mode for distance calculation.">
+            <th>Alignment Mode</th>
+            <td>
+              <select id="compute_distance_mode" class="form-control textfield" style="width:250px">
+                <option value="overlap">overlap</option>
+                <option value="global">global</option>
+                <option value="local">local</option>
+                <option value="dialign">dialign</option>
+              </select>
+            </td>
+          </tr>
+          <tr title="Select the tree building method.">
+            <th>Tree Method</th>
+            <td>
+              <select id="compute_tree_method" class="form-control textfield" style="width:250px">
+                <option value="neighbor">Neighbor-Joining</option>
+                <option value="upgma">UPGMA</option>
+                <option value="">No tree</option>
+              </select>
+            </td>
+          </tr>
+        </table>
+        <button type="button" class="btn btn-primary mright" onclick="submitComputeDistances();">SUBMIT</button>
+        <div id="idistances_table" style="margin-top:15px"></div>
+        <div id="idistances_help" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+    </div>
+  </div>
+
   <div id="workflow_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="workflow_modal_label">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
@@ -633,7 +704,7 @@ EDICTOR main menu
           <h3 id="workflow_modal_label">工作流 / Workflow：加载 → 分词 → 同源词</h3>
         </div>
         <div class="modal-body" id="workflow_modal_body">
-          <div id="workflow_step_indicator" style="margin-bottom:10px;font-weight:bold">Step 1 / 5</div>
+          <div id="workflow_step_indicator" style="margin-bottom:10px;font-weight:bold">Step 1 / 6</div>
 
           <div class="workflow-step" data-step="1">
             <h4>1. 加载数据文件 / Load data</h4>
@@ -671,6 +742,12 @@ EDICTOR main menu
             <p>(Purpose: compute cognate sets to support alignments and correspondence patterns.)</p>
             <button type="button" class="btn btn-primary" onclick="workflowOpenComputeCognates();">计算同源词 / Cognates</button>
             <p style="margin-top:10px">后续可在 COMPUTE 里计算对齐与对应模式。</p>
+          </div>
+
+          <div class="workflow-step" data-step="6" style="display:none">
+            <h4>6. Distances & Tree</h4>
+            <p>Compute the distance matrix and generate a tree for overview and comparison.</p>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenComputeDistances();">Distances & Tree</button>
           </div>
         </div>
         <div class="modal-footer">
@@ -785,6 +862,7 @@ EDICTOR main menu
   }
 </style>
 <script src="js/generic/highlight.js"></script>
+<script src="js/sound_class_models.js"></script>
 <script src="js/generic/sampa.js"></script>
 <script src="js/generic/edit.js"></script>
 <script src="js/generic/multiple.js"></script>
@@ -803,6 +881,7 @@ EDICTOR main menu
 <script src="js/util.js"></script>
 <script src="js/alignments.js"></script>
 <script src="js/patterns.js"></script>
+<script src="js/distances.js"></script>
 <script src="js/cognates.js"></script>
 <script src="js/phonology.js"></script>
 <script src="js/morphology.js"></script>

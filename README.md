@@ -110,6 +110,24 @@ require GPU usage from the dialog; otherwise the filter runs on CPU.
 
 ## Getting Started on Windows
 
+在 conda 环境里打开本地源码，按 README 的方式这样做即可（PowerShell）：
+
+```shell
+   git clone https://github.com/shengjinbiao/edictor.git
+   conda create -n edictor_env
+   conda activate edictor_env
+   cd D:\edictor
+   python -m pip install -e .
+   edictor server
+```
+这样会打开localhost:9999。可选：指定端口
+
+```shell
+   edictor server --port=9876
+```
+
+如果你还没装依赖，用 python -m pip install -e . 一次即可，之后只需 edictor server。
+
 In order to get the EDICTOR application working on Windows, we have successfully carried out the following steps. First, you should download [Python](https://python.org) (we used Python 3.11.9, but you can use versions starting from 3.9). We also downloaded [GIT](https://www.git-scm.com/) for Windows (Version 2.45.2.windows.1). Having installed both programs successfully, you must also install the [Windows Powershell](https://learn.microsoft.com/en-us/powershell/?view=powershell-7.4) which offers commandline facilities. This program can then be opened as any other application (but you must open the application as administrator, you find information on doing this in German [here](https://www.heise.de/tipps-tricks/Windows-Powershell-Skript-ausfuehren-4672163.html)).
 
 Having opened the Powersheel terminal window, you will reside in the path `C:\windows\system32`. From here, you should got to your user path with the `cd` command. In the following example, the username is `edictor3`.
@@ -153,7 +171,7 @@ If you want to use the tool along with [LingPy](https://lingpy.org) and [LingRex
 
 ## Run with Docker (no local Python needed)
 
-We provide a lightweight Dockerfile to run EDICTOR in a container.
+We provide a Dockerfile to run EDICTOR in a container (CUDA runtime base image).
 
 Build:
 
@@ -170,6 +188,13 @@ docker run --rm -e PORT=9876 -p 9876:9876 edictor
 ```
 
 Then open `http://localhost:9999` in your browser.
+
+Notes:
+- The Docker image installs `requirements.txt` plus `.[lingpy]` so that
+  semantic filtering (Sentence-Transformers), tokenizer (segments), and
+  Excel support (pandas/openpyxl) are available in the container.
+- The base image is CUDA-enabled; if you don't need GPU, you can switch
+  to a CPU-only base image and keep the same install steps.
 
 Mount data (optional):
 

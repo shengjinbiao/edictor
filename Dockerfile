@@ -10,7 +10,8 @@ RUN apt-get update \
 
 # Install EDICTOR from source (includes optional lingpy extras)
 COPY . /app
-RUN pip install --no-cache-dir ".[lingpy]"
+RUN pip install --no-cache-dir -r requirements.txt \
+  && pip install --no-cache-dir ".[lingpy]"
 
 # Default port
 ENV PORT=9999

@@ -309,6 +309,19 @@ DOLGO['_diacritics'] = '!:|¯ʰʱʲʳʴʵʶʷʸʹʺʻʼʽʾʿˀˀ ˁ˂˃˄˅ˆˈ
 DOLGO['_vowels'] = 'aaeeiioouuyyáãææíõøøĩııœœũũūǒǝɐɐɑɑɒɒɔɔɘɘəəəɚɛɛɜɜɞɞɤɤɨɨɪɪɯɯɵɵɶɶɶɷɿɿʅʅʉʉʊʊʌʌʏʏᴀᴀᴇᴇᴜᴜẽỹ';
 
 
+/* expose sound class metadata and default model */
+var SOUND_CLASS_META = {
+  _tones: DOLGO['_tones'],
+  _diacritics: DOLGO['_diacritics'],
+  _vowels: DOLGO['_vowels']
+};
+
+if (typeof SOUND_CLASS_MODELS === "undefined") {
+  SOUND_CLASS_MODELS = {};
+}
+SOUND_CLASS_MODELS.dolgo = DOLGO;
+
+
 /* simple helper function to retrieve sound classes */
 function getSoundClass(sound) {
   var dolgo;  

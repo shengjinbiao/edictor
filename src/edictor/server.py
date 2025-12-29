@@ -5,7 +5,8 @@ from edictor.util import (
         check, configuration,
         file_type, file_name, file_handler, triples, download,
         update, serve_base, new_id, modifications, alignments,
-        cognates, patterns, semantic_filter, semantic_batch, server_page, server_export,
+        cognates, patterns, distances, semantic_filter, semantic_batch, server_page, server_export,
+        upload_semantic_file,
         orthography_tokenize, quit
         )
 
@@ -57,10 +58,14 @@ class Handler(SimpleHTTPRequestHandler):
             cognates(s, post_data_bytes, "POST")
         if fn == "/patterns.py":
             patterns(s, post_data_bytes, "POST")
+        if fn == "/distances.py":
+            distances(s, post_data_bytes, "POST")
         if fn == "/semantic_filter.py":
             semantic_filter(s, post_data_bytes, "POST")
         if fn == "/semantic_batch.py":
             semantic_batch(s, post_data_bytes, "POST")
+        if fn == "/upload_semantic.py":
+            upload_semantic_file(s, post_data_bytes, s.headers)
         if fn == "/orthography_tokenize.py":
             orthography_tokenize(s, post_data_bytes, "POST")
         if fn == "/server_page.py":

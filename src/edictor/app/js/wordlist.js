@@ -557,6 +557,9 @@ function csvToArrays(allText, separator, comment, keyval) {
   CFG['_roots'] = (CFG['root_formatter']) ? WLS.columns[CFG['root_formatter']] : -1;
   
   if (CFG['_roots'] != -1) {resetRootFormat(CFG['root_formatter']);} 
+  if (typeof UTIL.apply_sound_class_model === "function") {
+    UTIL.apply_sound_class_model(CFG.sound_class_model || 'dolgo');
+  }
   /* create selectors */
   createSelectors();
   /* sort the data following the default sorting options */

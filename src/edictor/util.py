@@ -9,6 +9,8 @@ import codecs
 import getpass
 import signal
 import re
+import io
+import cgi
 
 from urllib.request import urlopen
 
@@ -480,6 +482,150 @@ def alignments(s, query, qtype):
     )
 
 
+def distances(s, query, qtype):
+    args = {
+        "wordlist": "",
+        "method": "edit-dist",
+        "mode": "overlap",
+        "tree": "neighbor"
+    }
+    handle_args(args, query, qtype)
+    args["wordlist"] = urllib.parse.unquote_plus(args["wordlist"])
+
+    if not args["wordlist"].strip():
+        send_response(
+            s,
+            json.dumps({"error": "Missing wordlist."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    allowed_methods = {"edit-dist", "turchin", "sca", "lexstat"}
+    allowed_modes = {"overlap", "global", "local", "dialign"}
+    allowed_trees = {"neighbor", "upgma", ""}
+    if args["method"] not in allowed_methods:
+        args["method"] = "edit-dist"
+    if args["mode"] not in allowed_modes:
+        args["mode"] = "overlap"
+    if args["tree"] not in allowed_trees:
+        args["tree"] = "neighbor"
+
+    from lingpy.compare.lexstat import LexStat
+    from lingpy.convert.strings import matrix2dst
+    from lingpy.algorithm.clustering import neighbor, upgma
+    from lingpy import Tree
+
+    tmp = {0: ["doculect", "concept", "form", "tokens"]}
+    for row in args["wordlist"].split("\n")[:-1]:
+        idx, doculect, concept, tokens = row.split('\t')
+        tmp[int(idx)] = [
+            doculect,
+            concept,
+            tokens,
+            tokens.split(" ")
+        ]
+
+    lex = LexStat(tmp)
+    if len(lex.taxa) < 2:
+        send_response(
+            s,
+            json.dumps({"error": "Need at least two taxa to compute distances."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+    try:
+        from lingpy import util as lingpy_util
+        from lingpy.algorithm.cython import _misc as misc
+        empty_pairs = 0
+        dist_list = []
+        for distances in lex._get_distances(
+            args["method"],
+            args["mode"],
+            0.5,
+            0.3,
+            -2,
+            lingpy_util.identity,
+            True
+        ):
+            if distances:
+                dist_list.append(sum(distances) / len(distances))
+            else:
+                dist_list.append(1.0)
+                empty_pairs += 1
+        D = misc.squareform(dist_list)
+    except ZeroDivisionError:
+        send_response(
+            s,
+            json.dumps({"error": "No overlapping concepts between taxa; distance undefined. Please check filters or data coverage."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+    except Exception as exc:
+        send_response(
+            s,
+            json.dumps({"error": "Distance computation failed.", "detail": str(exc)}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+    taxa = lex.taxa
+    def _sanitize_taxa(names):
+        forbidden = set("():;,")
+        safe = []
+        seen = {}
+        mapping = {}
+        for name in names:
+            cleaned = "".join("_" if ch in forbidden else ch for ch in name)
+            if cleaned in seen:
+                seen[cleaned] += 1
+                cleaned = f"{cleaned}_{seen[cleaned]}"
+            else:
+                seen[cleaned] = 0
+            safe.append(cleaned)
+            mapping[cleaned] = name
+        return safe, mapping
+    dst = matrix2dst(D, taxa)
+
+    newick = ""
+    ascii_tree = ""
+    taxa_map = {}
+    if args["tree"] in {"neighbor", "upgma"}:
+        safe_taxa, taxa_map = _sanitize_taxa(taxa)
+        try:
+            if args["tree"] == "neighbor":
+                newick = neighbor(D, safe_taxa)
+            elif args["tree"] == "upgma":
+                newick = upgma(D, safe_taxa)
+        except ValueError as exc:
+            send_response(
+                s,
+                json.dumps({"error": str(exc)}),
+                content_type="application/json; charset=utf-8",
+            )
+            return
+
+    if newick:
+        ascii_tree = Tree(newick).asciiArt()
+
+    matrix = D.tolist() if hasattr(D, "tolist") else D
+    payload = {
+        "taxa": taxa,
+        "matrix": matrix,
+        "phylip": dst,
+        "tree": newick,
+        "ascii": ascii_tree,
+        "method": args["method"],
+        "mode": args["mode"],
+        "tree_method": args["tree"],
+        "taxa_map": taxa_map,
+        "empty_pairs": empty_pairs
+    }
+    send_response(
+        s,
+        json.dumps(payload),
+        content_type="application/json; charset=utf-8",
+    )
+
+
 def semantic_filter(s, query, qtype):
     args = {"payload": ""}
     handle_args(args, query, qtype)
@@ -711,6 +857,69 @@ def _split_sem_terms(text):
         if part:
             parts.append(part)
     return parts
+
+
+def _safe_upload_name(name, fallback="upload.xlsx"):
+    if not name:
+        return fallback
+    name = Path(name).name
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    return name or fallback
+
+
+def upload_semantic_file(s, post_data_bytes, headers):
+    content_type = headers.get("Content-Type", "")
+    if "multipart/form-data" not in content_type:
+        send_response(
+            s,
+            json.dumps({"error": "Expected multipart form data."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    environ = {
+        "REQUEST_METHOD": "POST",
+        "CONTENT_TYPE": content_type,
+        "CONTENT_LENGTH": str(len(post_data_bytes)),
+    }
+    form = cgi.FieldStorage(
+        fp=io.BytesIO(post_data_bytes),
+        headers=headers,
+        environ=environ,
+        keep_blank_values=True,
+    )
+    if "file" not in form:
+        send_response(
+            s,
+            json.dumps({"error": "Missing file."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    file_item = form["file"]
+    if not getattr(file_item, "file", None):
+        send_response(
+            s,
+            json.dumps({"error": "Invalid upload."}),
+            content_type="application/json; charset=utf-8",
+        )
+        return
+
+    upload_dir = Path.cwd().joinpath("uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = _safe_upload_name(getattr(file_item, "filename", ""))
+    suffix = Path(safe_name).suffix or ".xlsx"
+    stem = Path(safe_name).stem or "upload"
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = upload_dir.joinpath(f"{stem}-{stamp}{suffix}")
+    with open(target, "wb") as out:
+        out.write(file_item.file.read())
+
+    send_response(
+        s,
+        json.dumps({"path": str(target)}),
+        content_type="application/json; charset=utf-8",
+    )
 
 
 def _compute_suffix_penalty(text):

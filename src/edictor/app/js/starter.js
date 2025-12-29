@@ -507,6 +507,14 @@ function openComputePatternsModal(event) {
   $('#compute_patterns_modal').modal('show');
 }
 
+function openComputeDistancesModal(event) {
+  if (event && event.preventDefault) { event.preventDefault(); }
+  if ($('#compute_distances_modal').hasClass('in')) {
+    return;
+  }
+  $('#compute_distances_modal').modal('show');
+}
+
 function submitComputeCognates() {
   var input = document.getElementById('compute_cognate_threshold');
   if (input && input.value) {
@@ -558,7 +566,7 @@ function resetComputeModalState(modalId, tableId, helpId) {
   if (help) { help.style.display = 'none'; }
 }
 
-var WORKFLOW = { step: 1, total: 5, paused: false };
+var WORKFLOW = { step: 1, total: 6, paused: false };
 
 function openWorkflowModal(event) {
   if (event && event.preventDefault) { event.preventDefault(); }
@@ -660,6 +668,11 @@ function workflowTokenizeIPA() {
 function workflowOpenComputeCognates() {
   workflowPause();
   openComputeCognatesModal();
+}
+
+function workflowOpenComputeDistances() {
+  workflowPause();
+  openComputeDistancesModal();
 }
 
 function workflowPause() {
@@ -943,6 +956,7 @@ $(function() {
   resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
   resetComputeModalState('compute_alignments_modal', 'ialms_table', 'ialms_help');
   resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+  resetComputeModalState('compute_distances_modal', 'idistances_table', 'idistances_help');
 
   $('#compute_cognates_modal').on('hidden.bs.modal', function() {
     resetComputeModalState('compute_cognates_modal', 'icognates_table', 'icognates_help');
@@ -964,6 +978,7 @@ $(function() {
   });
   $('#compute_patterns_modal').on('hidden.bs.modal', function() {
     resetComputeModalState('compute_patterns_modal', 'ipatterns_table', 'ipatterns_help');
+    resetComputeModalState('compute_distances_modal', 'idistances_table', 'idistances_help');
     if (WORKFLOW.paused) {
       var cont = confirm('继续工作流下一步吗？');
       if (cont) {
