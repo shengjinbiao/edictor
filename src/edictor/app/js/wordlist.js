@@ -662,6 +662,25 @@ function createSelectors() {
     }
   }
   eid.innerHTML = txt;
+
+  var sortSelect = document.getElementById('sort_column');
+  var filterSelect = document.getElementById('filter_column');
+  if (sortSelect || filterSelect) {
+    var quickOpts = '<option value="">(column)</option>';
+    for (var i=0,column; column=columns[i]; i++) {
+      quickOpts += '<option value="'+column+'">'+WLS.column_names[column]+'</option>';
+    }
+    if (sortSelect) {
+      sortSelect.innerHTML = quickOpts;
+    }
+    if (filterSelect) {
+      filterSelect.innerHTML = quickOpts;
+    }
+    if (CFG['sorted'] && sortSelect) {
+      var tmp = CFG['sorted'].split('_');
+      sortSelect.value = tmp.slice(1, tmp.length - 1).join('_');
+    }
+  }
   
   /* check again fro taxa */
   if (CFG['tc_status'] != 'not' && CFG['tc_status'] != 'notc'){
@@ -864,13 +883,22 @@ function showWLS(start){
           var jdx = parseInt(j) + 1;
 
           var head = WLS['header'][j];
+          var safeHeadJs = String(head).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          var safeHeadAttr = String(head)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/'/g, "&#39;");
+          var on_focus = "onmousedown=\"setActiveCell(" + idx + "," + jdx + ",'" + safeHeadJs + "')\" ";
+          var data_pos = 'data-row="' + idx + '" data-col="' + safeHeadAttr + '" ';
           if (WLS['columns'][head] > 0) { var cell_display = ''; }
           else { var cell_display = ' style="display:none"';  }
 
           if ([CFG.note_formatter, CFG.formatter, CFG.root_formatter, CFG.pattern_formatter, CFG.quintiles].indexOf(WLS.header[j]) == -1 && WLS.uneditables.indexOf(WLS.header[j]) == -1 && !CFG['publish']) {
             var on_click = 'onclick="editEntry(' + idx + ',' + jdx + ',0,0)" ';
             var on_title = 'title="Modify entry '+idx+'/'+jdx+'." ';
-            var on_ctxt = ''; //(j != CFG._morphemes) ? 'oncontextmenu="copyPasteEntry(event,'+idx+','+jdx+','+j+')" ': '';
+            var on_ctxt = 'oncontextmenu="copyPasteEntry(event,'+idx+','+jdx+','+j+')" ';
             var this_class = 'class="'+WLS['header'][j]+'" ';
           }
           else if (WLS.uneditables.indexOf(WLS.header[j]) != -1 || CFG['publish']) {
@@ -930,7 +958,9 @@ function showWLS(start){
             this_class + 
             on_title +
             on_click +
-            on_ctxt + 
+            on_ctxt +
+            on_focus +
+            data_pos +
             data_value + cell_display+'>'+escaped_value+taxon_addon+'</td>';
         }
         text += '</tr>';
@@ -953,13 +983,22 @@ function showWLS(start){
           var jdx = parseInt(j) + 1;
 
           var head = WLS['header'][j];
+          var safeHeadJs = String(head).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          var safeHeadAttr = String(head)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/'/g, "&#39;");
+          var on_focus = "onmousedown=\"setActiveCell(" + idx + "," + jdx + ",'" + safeHeadJs + "')\" ";
+          var data_pos = 'data-row="' + idx + '" data-col="' + safeHeadAttr + '" ';
           if (WLS['columns'][head] > 0) {
             var cell_display = '';
           }
           else {
             var cell_display = ' style="display:none"'; // ff vs. chrome problem
           }
-          text += '<td class="' + WLS['header'][j] + '" title="MODIFY ENTRY ' + idx + '/' + jdx + '" onclick="editEntry(' + idx + ',' + jdx + ',0,0)" data-value="' + WLS[idx][j] + '" ' + cell_display + '>';
+          text += '<td class="' + WLS['header'][j] + '" title="MODIFY ENTRY ' + idx + '/' + jdx + '" onclick="editEntry(' + idx + ',' + jdx + ',0,0)" oncontextmenu="copyPasteEntry(event,'+idx+','+jdx+','+j+')" ' + on_focus + data_pos + 'data-value="' + WLS[idx][j] + '" ' + cell_display + '>';
           text += WLS[idx][j];
           text += '</td>';
         }
@@ -1026,6 +1065,10 @@ function showWLS(start){
     following = WLS['rows'].length;
   }
   current.innerHTML = 'Showing ' + start + ' - ' + following + ' of ' + parseInt(WLS['rows'].length) + ' entries';
+  var statusRows = document.getElementById('excel-status-rows');
+  if (statusRows) {
+    statusRows.innerText = current.innerHTML;
+  }
   toggleClasses(['first','filename','current'],'hidden','unhidden');
   document.getElementById('view').style.display = 'none';
   if (CFG['navbar']) {
@@ -1036,11 +1079,16 @@ function showWLS(start){
   fn.innerHTML = '&lt;' + CFG['filename'] + '&gt;';
   highLight();
 
+  var sortedHeads = document.querySelectorAll('#qlc_table th.sort-active');
+  for (var i = 0; i < sortedHeads.length; i++) {
+    sortedHeads[i].classList.remove('sort-active');
+  }
   if (CFG['sorted']) {
-    //->console.log(CFG['sorted']);
     var tmp = CFG['sorted'].split('_');
-    document.getElementById('HEAD_'+tmp.slice(1,tmp.length-1).join('_')).style.backgroundColor = 'Crimson';
-    //document.getElementById('HEAD_'+CFG['sorted'].split('_').[1]).style.backgroundColor = 'Crimson';
+    var headEl = document.getElementById('HEAD_' + tmp.slice(1, tmp.length - 1).join('_'));
+    if (headEl) {
+      headEl.classList.add('sort-active');
+    }
   }
   if (CFG._selected_concepts.length > 1) {
     document.getElementById('wordlist_current_concept').innerHTML = ''+
@@ -1053,6 +1101,102 @@ function showWLS(start){
   }
   //document.location.hash = 'qlc';
   return 1;
+}
+
+function setActiveCell(idx, jdx, head) {
+  CFG._active_cell = {idx: idx, jdx: jdx, head: head};
+  var active = document.querySelector('#qlc_table td.cell-active');
+  if (active) {
+    active.classList.remove('cell-active');
+  }
+  var row = document.getElementById('L_' + idx);
+  if (row && row.children[jdx]) {
+    row.children[jdx].classList.add('cell-active');
+  }
+  var status = document.getElementById('excel-status-selection');
+  if (status) {
+    status.innerText = "Row " + idx + " | " + head;
+  }
+}
+
+function copyActiveCell() {
+  if (!CFG._active_cell) {
+    fakeAlert("Select a cell to copy.");
+    return;
+  }
+  var idx = CFG._active_cell.idx;
+  var jdx = CFG._active_cell.jdx;
+  var value = WLS[idx][jdx - 1];
+  CFG._cpentry = value;
+  var status = document.getElementById('excel-status-selection');
+  if (status) {
+    status.innerText = "Copied: Row " + idx + " | " + CFG._active_cell.head;
+  }
+}
+
+function pasteActiveCell() {
+  if (!CFG._active_cell) {
+    fakeAlert("Select a cell to paste into.");
+    return;
+  }
+  if (!CFG._cpentry && CFG._cpentry !== 0) {
+    fakeAlert("Nothing to paste. Copy a cell first.");
+    return;
+  }
+  editEntry(CFG._active_cell.idx, CFG._active_cell.jdx, 0, 0, CFG._cpentry);
+}
+
+function clearCopyCache() {
+  CFG._cpentry = false;
+  var cpval = document.getElementById('copy_value');
+  if (cpval) {
+    cpval.innerHTML = '';
+    cpval.style.display = 'none';
+  }
+  var status = document.getElementById('excel-status-selection');
+  if (status) {
+    status.innerText = "Clipboard cleared";
+  }
+}
+
+function applyQuickFilter() {
+  var col = (document.getElementById('filter_column') || {}).value || "";
+  var val = (document.getElementById('filter_value') || {}).value || "";
+  if (!col) {
+    fakeAlert("Choose a column to filter.");
+    return;
+  }
+  var input = document.getElementById('filter_all');
+  if (input) {
+    input.value = col + " = " + val;
+  }
+  applyFilter();
+  showWLS(getCurrent());
+  var status = document.getElementById('excel-status-filter');
+  if (status) {
+    status.innerText = "Filter: " + col + " = " + val;
+  }
+}
+
+function clearQuickFilter() {
+  var input = document.getElementById('filter_all');
+  if (input) {
+    input.value = '';
+  }
+  var val = document.getElementById('filter_value');
+  if (val) {
+    val.value = '';
+  }
+  var col = document.getElementById('filter_column');
+  if (col) {
+    col.value = '';
+  }
+  applyFilter();
+  showWLS(getCurrent());
+  var status = document.getElementById('excel-status-filter');
+  if (status) {
+    status.innerText = "";
+  }
 }
 
 /* function handles copy-pasting of elements */
@@ -1247,7 +1391,7 @@ function editEntry(
     }
   }
 
-  var entry = line.childNodes[jdx];
+  var entry = line.children[jdx];
 
   if (jdx < 1 || jdx - 1 == WLS['header'].length) {
     if (jdx < 1) {
@@ -1285,6 +1429,11 @@ function editEntry(
       editEntry(idx, jdx + 1, from_idx, from_jdx);
     }
     return;
+  }
+
+  if (typeof setActiveCell === 'function') {
+    var head = WLS['header'][jdx - 1];
+    setActiveCell(idx, jdx, head);
   }
   
   /* now we format the entry and turn it into a text-input field */
@@ -1680,6 +1829,11 @@ function filterColumnValue(event) {
   }
   applyFilter();
   showWLS(getCurrent());
+  var status = document.getElementById('excel-status-filter');
+  var input = document.getElementById('filter_all');
+  if (status && input) {
+    status.innerText = input.value ? ("Filter: " + input.value) : "";
+  }
 }
 
 function applyFilter(){
@@ -2469,6 +2623,9 @@ function highLight() {
       }
     }
     else if (i === CFG['_cognates']){
+      if (!WLS.etyma) {
+        continue;
+      }
       roots = document.getElementsByClassName(head);
       for (j=0; j<roots.length; j++){
         if (roots[j].innerHTML == roots[j].dataset.value){
@@ -2586,8 +2743,8 @@ function sortTable(event,head)
         {
           var a = WLS[x][WLS.header.indexOf(head)];
           var b = WLS[y][WLS.header.indexOf(head)];
-          var c = parseInt(a);
-          var d = parseInt(b);
+          var c = parseFloat(a);
+          var d = parseFloat(b);
 
           if (!isNaN(c) && !isNaN(d)) {
             return d - c;
@@ -2607,8 +2764,8 @@ function sortTable(event,head)
         {
           var a = WLS[x][WLS.header.indexOf(head)];
           var b = WLS[y][WLS.header.indexOf(head)];
-          var c = parseInt(a);
-          var d = parseInt(b);
+          var c = parseFloat(a);
+          var d = parseFloat(b);
 
           if (!isNaN(c) && !isNaN(d)) {
             return c - d;
@@ -2619,6 +2776,52 @@ function sortTable(event,head)
         }
         );
     CFG['sorted'] = 'th_'+head+'_1';
+  }
+  var sortSelect = document.getElementById('sort_column');
+  if (sortSelect) {
+    sortSelect.value = CFG['sorted'] ? head : '';
+  }
+  showWLS(1);
+}
+
+function sortTableByColumn(head, direction) {
+  var sort_rows = function (x, y) {
+    var _x = WLS[x][CFG['_cidx']] + ' ' + WLS[x][CFG['_tidx']];
+    var _y = WLS[y][CFG['_cidx']] + ' ' + WLS[y][CFG['_tidx']];
+    return _x.localeCompare(_y);
+  };
+
+  if (!head || direction === 'reset') {
+    WLS['rows'].sort(sort_rows);
+    CFG['sorted'] = false;
+    var sortSelect = document.getElementById('sort_column');
+    if (sortSelect) {
+      sortSelect.value = '';
+    }
+    showWLS(1);
+    return;
+  }
+
+  var rows = WLS.rows.slice();
+  var headIdx = WLS.header.indexOf(head);
+  var desc = direction === 'desc';
+
+  WLS['rows'] = rows.sort(function (x, y) {
+    var a = WLS[x][headIdx];
+    var b = WLS[y][headIdx];
+    var c = parseFloat(a);
+    var d = parseFloat(b);
+
+    if (!isNaN(c) && !isNaN(d)) {
+      return desc ? (d - c) : (c - d);
+    }
+    return desc ? b.localeCompare(a) : a.localeCompare(b);
+  });
+
+  CFG['sorted'] = 'th_' + head + '_' + (desc ? '0' : '1');
+  var sortSelect = document.getElementById('sort_column');
+  if (sortSelect) {
+    sortSelect.value = head;
   }
   showWLS(1);
 }

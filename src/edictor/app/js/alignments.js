@@ -11,6 +11,58 @@ ALIGN.UDX = [];
 ALIGN.SEQS = [];
 ALIGN.LOCKS = [];
 
+ALIGN.ensureAlignmentColumn = function () {
+  if (typeof CFG._alignments !== "number" || CFG._alignments < 0 || !WLS.header || !WLS.header[CFG._alignments]) {
+    const idx = UTIL.ensureColumn("ALIGNMENT");
+    if (idx === -1) {
+      fakeAlert("Could not create ALIGNMENT column.");
+      return false;
+    }
+    CFG._alignments = idx;
+    CFG._almcol = WLS.header[idx];
+    const alignInput = document.getElementById("settings_alignments");
+    if (alignInput) { alignInput.value = WLS.header[idx]; }
+    if (typeof createSelectors === "function") {
+      createSelectors();
+    }
+  }
+  return true;
+};
+
+ALIGN.ensureCognatesReady = function () {
+  const cognates = (CFG._morphology_mode === "partial") ? CFG._roots : CFG._cognates;
+  if (typeof cognates !== "number" || cognates < 0 || !WLS.header || !WLS.header[cognates]) {
+    fakeAlert("请先设置同源编号列（COGID/COGIDS），或先计算同源集。");
+    return false;
+  }
+  let missing = 0;
+  for (const idx in WLS) {
+    if (WLS.hasOwnProperty(idx) && !isNaN(idx)) {
+      const val = WLS[idx][cognates];
+      if (typeof val === "undefined" || val === "" || val === "undefined") {
+        missing += 1;
+      }
+    }
+  }
+  if (missing > 0) {
+    if (confirm("同源编号列有空值，无法对齐。是否先自动计算同源集？")) {
+      if (typeof COGNACY !== "undefined" && typeof COGNACY.compute_cognates === "function") {
+        COGNACY.compute_cognates();
+      }
+    }
+    for (const key in WLS) {
+      if (WLS.hasOwnProperty(key) && !isNaN(key)) {
+        const updated = WLS[key][cognates];
+        if (typeof updated === "undefined" || updated === "" || updated === "undefined") {
+          fakeAlert("仍有同源编号为空，请先完成同源集计算。");
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+};
+
 ALIGN.alignable_parts = function (seq) {
   "use strict";
   let open = false;
@@ -637,6 +689,12 @@ ALIGN.lock_sequences = function (i, event) {
 
 ALIGN.lingpy_alignments = function () {
   "use strict";
+  if (!ALIGN.ensureAlignmentColumn()) {
+    return;
+  }
+  if (!ALIGN.ensureCognatesReady()) {
+    return;
+  }
   const date = new Date().toString();
   const feedback = document.getElementById("ialms_table");
   const cognates = (CFG._morphology_mode === "partial") ? CFG._roots : CFG._cognates;
@@ -700,6 +758,12 @@ ALIGN.lingpy_alignments = function () {
 
 ALIGN.automated_alignments = function () {
   "use strict";
+  if (!ALIGN.ensureAlignmentColumn()) {
+    return;
+  }
+  if (!ALIGN.ensureCognatesReady()) {
+    return;
+  }
   console.log("starting");
   const date = new Date().toString();
   const feedback = document.getElementById("ialms_table");

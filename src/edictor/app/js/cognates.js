@@ -527,10 +527,31 @@ COGNACY.lingpy_cognates = () => {
   "use strict";
   const date = new Date().toString();
   const feedback = document.getElementById("icognates_table");
-  const cognates = resolveCognateIndex();
+  let cognates = resolveCognateIndex();
   if (typeof cognates !== "number" || cognates < 0) {
-    fakeAlert("You must specify a column to store the cognate judgments in the SETTINGS menu.");
-    return;
+    const defaultName = CFG._morphology_mode === "partial" ? "COGIDS" : "COGID";
+    const name = prompt("未设置同源编号列，输入要创建的列名（默认 " + defaultName + "）", defaultName);
+    if (!name) { return; }
+    const idx = UTIL.ensureColumn(name);
+    if (idx === -1) {
+      fakeAlert("未能创建列，请检查列名。");
+      return;
+    }
+    if (CFG._morphology_mode === "partial") {
+      CFG._roots = idx;
+      CFG.root_formatter = WLS.header[idx];
+      const rootsInput = document.getElementById("settings_roots");
+      if (rootsInput) { rootsInput.value = WLS.header[idx]; }
+    } else {
+      CFG._cognates = idx;
+      CFG._fidx = idx;
+      CFG.formatter = WLS.header[idx];
+      const cognatesInput = document.getElementById("settings_cognates");
+      if (cognatesInput) { cognatesInput.value = WLS.header[idx]; }
+    }
+    cognates = idx;
+    createSelectors();
+    showWLS(getCurrent());
   }
 
   let wordlist = "";
@@ -602,8 +623,15 @@ COGNACY.compute_cognates = () => {
     }
     if (CFG._morphology_mode === "partial") {
       CFG._roots = idx;
+      CFG.root_formatter = WLS.header[idx];
+      const rootsInput = document.getElementById("settings_roots");
+      if (rootsInput) { rootsInput.value = WLS.header[idx]; }
     } else {
       CFG._cognates = idx;
+      CFG._fidx = idx;
+      CFG.formatter = WLS.header[idx];
+      const cognatesInput = document.getElementById("settings_cognates");
+      if (cognatesInput) { cognatesInput.value = WLS.header[idx]; }
     }
     formatter = idx;
     createSelectors(); /* 更新下拉 */

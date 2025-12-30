@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 EDICTOR main menu
 -->
 <!DOCTYPE html>
@@ -24,161 +24,188 @@ EDICTOR main menu
         style="margin-top:2px;padding:0px;margin-right:5px;width:50px;height:50px;"
         src="img/edictor-small.png" alt="tsv" />
         <!--suppress JSDeprecatedSymbols -->
-        <a class="navbar-brand" onclick="event.preventDefault();window.location.reload();">EDICTOR</a>
       </div>
       <div class="collapse navbar-collapse">
         <ul class="nav navbar-nav">
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-              ABOUT 
+              文件
               <span class="caret"></span>
             </a>
             <ul class="dropdown-menu" role="menu">
-              <li>
-                <a onclick="loadAjax(event, 'sortable', 'about', 'help col-sm-8');">
-                  <span class="glyphicon glyphicon-remove"></span>
-                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  ABOUT
-                </a>
-              </li>
-              <li>
-                <a id="toggle_contact" onclick="loadAjax(event, 'sortable','contact','smallbox col-sm-5');">
-                  <span class="glyphicon glyphicon-remove"></span>
-                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  CONTACT
-                </a>
-              </li>
-              <li>
-                <a id="toggle_help" onclick="loadAjax(event, 'sortable','help','help col-sm-8');">
-                  <span class="glyphicon glyphicon-remove"></span>
-                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  HELP
-                </a>
-              </li>
+              <li><a href="#" onclick="event.preventDefault();document.getElementById('file').click();">打开...</a></li>
+              <li><a href="#" onclick="event.preventDefault();openRemoteFilePrompt();">打开远程...</a></li>
+              <li><a href="#" onclick="event.preventDefault();saveFile();">下载</a></li>
+              <li><a href="#" onclick="event.preventDefault();saveFileInPython();">本地保存</a></li>
+              <li><a href="" onclick="localStorage.clear();event.preventDefault();window.location.reload();">重新加载</a></li>
+              <li class="divider"></li>
+              <li><a href="#" onclick="event.preventDefault();toggleDisplay(event,'menu');">配置面板</a></li>
+              <li><a href="#" onclick="event.preventDefault();openSettingsModal(event);">设置</a></li>
+              <li><a href="#" onclick="event.preventDefault();loadAjax(event, 'sortable', 'customize', 'help col-sm-8');">自定义</a></li>
+              <li><a href="#" onclick="event.preventDefault();loadAjax(event, 'sortable', 'templates', 'help col-sm-8');">模板</a></li>
             </ul>
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-              CONFIGURE
+              视图
               <span class="caret"></span>
             </a>
             <ul class="dropdown-menu" role="menu">
-              <li>
-                <a id="toggle_menu" onclick="toggleDisplay(event,'menu');">
-                  <span class="glyphicon glyphicon-ok"></span>
-                  <span class="glyphicon glyphicon-remove" style="display: none"></span>
-                  MENU
-                </a>
-              </li>
-              <li>
-                <a id="toggle_settings" 
-                  onclick="openSettingsModal(event);">
-                  <span class="glyphicon glyphicon-ok" style="display:none"></span>
-                  <span class="glyphicon glyphicon-remove"></span>
-                  SETTINGS
-                </a>
-              </li>
-              <li>
-                <a id="toggle_customize" onclick="loadAjax(event, 'sortable', 'customize', 'help col-sm-8');">
-                  <span class="glyphicon glyphicon-remove"></span>
-                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  CUSTOMIZE
-                </a>
-              </li>
-              <li>
-                <a id="toggle_templates" onclick="loadAjax(event, 'sortable', 'templates', 'help col-sm-8');">
-                  <span class="glyphicon glyphicon-remove"></span>
-                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  TEMPLATES
-                </a>
-              </li>
+              <li><a href="#" onclick="event.preventDefault();$('#textfields').toggle();">显示/隐藏筛选面板</a></li>
+              <li><a href="#" onclick="event.preventDefault();UTIL.show_help('wordlist', 'qlc', 'filedisplay');">帮助</a></li>
             </ul>
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-              EDIT
+              数据
               <span class="caret"></span>
             </a>
             <ul class="dropdown-menu" role="menu">
+              <li class="dropdown-header">排序</li>
+              <li class="menu-form" onclick="event.stopPropagation();">
+                <div class="menu-form-row">
+                  <label>列</label>
+                  <select id="sort_column" class="form-control excel-select"></select>
+                </div>
+                <div class="menu-form-actions">
+                  <button class="excel-btn" type="button" onclick="sortTableByColumn(document.getElementById('sort_column').value,'asc');">A-Z</button>
+                  <button class="excel-btn" type="button" onclick="sortTableByColumn(document.getElementById('sort_column').value,'desc');">Z-A</button>
+                  <button class="excel-btn" type="button" onclick="sortTableByColumn('', 'reset');">清除</button>
+                </div>
+              </li>
+              <li class="divider"></li>
+              <li class="dropdown-header">筛选</li>
+              <li class="menu-form" onclick="event.stopPropagation();">
+                <div class="menu-form-row">
+                  <label>列</label>
+                  <select id="filter_column" class="form-control excel-select"></select>
+                </div>
+                <div class="menu-form-row">
+                  <label>值</label>
+                  <input id="filter_value" type="text" class="form-control excel-input" placeholder="值" />
+                </div>
+                <div class="menu-form-actions">
+                  <button class="excel-btn" type="button" onclick="applyQuickFilter();">应用</button>
+                  <button class="excel-btn" type="button" onclick="clearQuickFilter();">清除</button>
+                </div>
+              </li>
+              <li><a href="#" onclick="event.preventDefault();sortTableByColumn(document.getElementById('sort_column').value,'asc');">升序排序</a></li>
+              <li><a href="#" onclick="event.preventDefault();sortTableByColumn(document.getElementById('sort_column').value,'desc');">降序排序</a></li>
+              <li><a href="#" onclick="event.preventDefault();sortTableByColumn('', 'reset');">清除排序</a></li>
+              <li class="divider"></li>
+              <li><a href="#" onclick="event.preventDefault();applyQuickFilter();">应用筛选</a></li>
+              <li><a href="#" onclick="event.preventDefault();clearQuickFilter();">清除筛选</a></li>
+            </ul>
+          </li>
+          <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+              工具
+              <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" role="menu">
+              <li><a href="#" onclick="event.preventDefault();UTIL.semanticFilterDialog();">语义筛选</a></li>
+              <li><a href="#" onclick="event.preventDefault();UTIL.semanticBatchDialog();">语义预筛</a></li>
+              <li><a href="#" onclick="event.preventDefault();UTIL.generateOrthography();">生成正字法文件</a></li>
+              <li><a href="#" onclick="event.preventDefault();document.getElementById('orthofile_upload').click();">上传正字法并分词</a></li>
+              <li><a href="#" onclick="event.preventDefault();UTIL.checkCoverage();">覆盖率检查</a></li>
+            </ul>
+          </li>
+          <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+              编辑
+              <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" role="menu">
+              <li><a href="#" onclick="event.preventDefault();copyActiveCell();">复制</a></li>
+              <li><a href="#" onclick="event.preventDefault();pasteActiveCell();">粘贴</a></li>
+              <li><a href="#" onclick="event.preventDefault();clearCopyCache();">清空剪贴板</a></li>
+              <li class="divider"></li>
               <li>
                 <a id="toggle_filedisplay" onclick="toggleDisplay(event,'filedisplay')">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  WORDLIST
+                  词表
                 </a>
               </li>
               <li>
                 <a id="toggle_cognates" onclick="loadAjax(event, 'sortable', 'cognates', 'colx largebox'); handle_cognate_selection();">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display:none"></span>
-                  COGNATE SETS
+                  同源集
                 </a>
               </li>
               <li>
                 <a id="toggle_partial" onclick="loadAjax(event, 'sortable', 'partial', 'colx largebox'); PART.handle_partial_selection();">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display:none"></span>
-                  PARTIAL COGNATE SETS
+                  部分同源集
                 </a>
               </li>
               <li>
                 <a id="toggle_glosses" onclick="loadAjax(event, 'sortable', 'glosses', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  MORPHEME GLOSSES
+                  语素释义
                 </a>
               </li>
               <li>
                 <a id="toggle_patterns" onclick="loadAjax(event, 'sortable', 'patterns', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  CORRESPONDENCE PATTERNS
+                  对应模式
                 </a>
               </li>
             </ul>
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-              COMPUTE
+              计算
               <span class="caret"></span>
             </a>
             <ul class="dropdown-menu" role="menu">
               <li>
+                <a href="#" onclick="event.preventDefault();computeTokenizeIPA();">
+                  IPA2Tokens 分词
+                </a>
+              </li>
+              <li><a href="#" onclick="event.preventDefault();document.getElementById('orthofile_upload').click();">上传正字法并分词</a></li>
+              <li class="divider"></li>
+              <li>
                 <a id="toggle_icognates" onclick="openComputeCognatesModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  COGNATE SETS
+                  同源集
                 </a>
               </li>
               <li>
                 <a id="toggle_ialms" onclick="openComputeAlignmentsModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  ALIGNMENTS
+                  对齐
                 </a>
               </li>
               <li>
                 <a id="toggle_ipatterns" onclick="openComputePatternsModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  CORRESPONDENCE PATTERNS
+                  对应模式
                 </a>
               </li>
               <li>
                 <a id="toggle_idistances" onclick="openComputeDistancesModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  DISTANCES AND TREES
+                  距离与谱系树
                 </a>
               </li>
             </ul>
           </li>
           <li>
-            <a id="toggle_workflow" onclick="openWorkflowModal(event);">WORKFLOW</a>
+            <a id="toggle_workflow" onclick="openWorkflowModal(event);">工作流</a>
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-              ANALYZE
+              分析
               <span class="caret"></span>
             </a>
             <ul class="dropdown-menu" role="menu">
@@ -186,41 +213,67 @@ EDICTOR main menu
                 <a id="toggle_phonology" onclick="loadAjax(event, 'sortable', 'phonology', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  SOUNDS
+                  语音
                 </a>
               </li>
               <li>
                 <a id="toggle_morphology" onclick="loadAjax(event, 'sortable', 'morphology', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  COLEXIFICATIONS
+                  共词化
                 </a>
               </li>
               <li>
                 <a id="toggle_correspondences" onclick="loadAjax(event, 'sortable', 'correspondences', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  CORRESPONDENCES
+                  对应关系
                 </a>
               </li>
               <li>
                 <a id="toggle_sets" onclick="loadAjax(event, 'sortable', 'sets', 'largebox');">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  COGNATES
+                  同源词
                 </a>
               </li>
               <li>
                 <a id="toggle_soundchange" onclick="openSoundChangeModal(event);">
                   <span class="glyphicon glyphicon-remove"></span>
                   <span class="glyphicon glyphicon-ok" style="display: none"></span>
-                  SOUND CHANGE CHAIN
+                  音变链
                 </a>
               </li>
             </ul>
           </li>
-          <li>
-            <a href="" onclick="localStorage.clear();event.preventDefault();window.location.reload();">RELOAD</a>
+          <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+              关于
+              <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" role="menu">
+              <li>
+                <a onclick="loadAjax(event, 'sortable', 'about', 'help col-sm-8');">
+                  <span class="glyphicon glyphicon-remove"></span>
+                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
+                  关于
+                </a>
+              </li>
+              <li>
+                <a id="toggle_contact" onclick="loadAjax(event, 'sortable','contact','smallbox col-sm-5');">
+                  <span class="glyphicon glyphicon-remove"></span>
+                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
+                  联系
+                </a>
+              </li>
+              <li>
+                <a id="toggle_help" onclick="loadAjax(event, 'sortable','help','help col-sm-8');">
+                  <span class="glyphicon glyphicon-remove"></span>
+                  <span class="glyphicon glyphicon-ok" style="display: none"></span>
+                  帮助
+                </a>
+              </li>
+            </ul>
           </li>
         </ul>
         <ul style="float:right" class="nav navbar-nav navbar-right">
@@ -240,67 +293,43 @@ EDICTOR main menu
             <span aria-hidden="true">&times;</span>
             <span class="sr-only">Close</span>
           </button>
-          <br class="menubr">
-          <input type="file" id="file" name="file" class="btn btn-primary pull-left submit3" style="margin-left:0px;margin-right:3px;padding:7px;" />
-          <input type="text" class="form-control pull-left mright textfield" style="width:140px;display:inline" onkeyup="showSpinner(() => {handleAjax(event,'url')});" id="ajaxfile" placeholder="select remote file" />
-          <div id="wordlist-statistics" class="infobox hidden pull-left mright">no data has been loaded</div>
-          <input type="text" class="form-control pull-left mright textfield" style="width:140px;display:inline;" onkeyup="showSpinner(() => {handleAjax(event,'db')});" id="database" placeholder="select database" />
-          <input id="last" type="button" onclick="showWLS(1);$('#last').removeClass('unhidden').addClass('hidden');" class="submit hidden" value="&nbsp;LAST&nbsp;" />
-
-          <div id="mainsettings" class="btn-group pull-right" style="display:none">
-            <button type="button" title="refresh current dataset"
-              onclick="resetFormat(CFG['formatter']);resetRootFormat(CFG['root_formatter']);createSelectors();applyFilter();showWLS(getCurrent());display_current_cognate();" class="btn-primary mleft btn submit3">
-              <span class="glyphicon glyphicon-refresh"></span>
-            </button>
-            <button class="submit3 btn-primary mleft btn titled" title="Filter data (shortcut [F3])" id="textfieldsettings" onclick="$('#textfields').toggle();">
-              <span class="glyphicon glyphicon-filter"></span>
-            </button>
-            <!--<button class="submit3 btn-primary mleft btn titled" title="Save (shortcut [CTRL+S])" id="refresh" onclick="refreshFile();">
-              <span class="glyphicon glyphicon-floppy-disk"></span>
-            </button>-->
-            <button class="submit3 btn-primary mleft btn titled" title="Download via Browser (shortcut [CTRL+E])" id="save" onclick="saveFile();">
-              <span class="glyphicon glyphicon-download-alt"></span>
-            </button>
-            <button class="submit3 btn-primary mleft btn titled" title="Save file locally (shortcut [CTRL+S])" id="save-python" onclick="saveFileInPython();">
-              <span class="glyphicon glyphicon-floppy-disk"></span>
-            </button>
-          </div>
-          <br class="menubr"><br class="menubr">
-          <div id="undoredo" class="btn-group pull-right">
-            <button title="UNDO (shortcut [CTRL+Y])" id="undo" onclick="UnDo();" class="mleft btn-primary btn titled hidden submit3" style="margin:3px">
-              <span class="glyphicon glyphicon-arrow-left"></span>
-            </button>
-            <button title="REDO (shortcut [CTRL+Z])" id="redo" onclick="ReDo();" class="mleft btn-primary btn titled hidden submit3" style="margin:3px">
-              <span class="glyphicon glyphicon-arrow-right"></span>
-            </button>
-          </div>
-          <br class="menubr">
-          <!-- FILTERS -->
-          <div id="textfields" class="pull-left"
-            style="display:none;overflow: visible; clear:both;">
-            <div class="btn-group">
-              <select class="multiselect" multiple id="select_doculects" title="filter doculects"></select>
-              <select class="multiselect" multiple id="select_concepts" title="filter concepts"></select>
-              <select class="multiselect" multiple id="select_columns" title="filter columns"></select>
-              <button class="btn-primary btn mright titled submit3" onclick="applyFilter();showWLS(getCurrent());">OK</button>
-              <button class="btn-primary btn mright titled submit3" title="semantic concept filter" onclick="UTIL.semanticFilterDialog();">SEMANTIC</button>
-              <button class="btn-primary btn mright titled submit3" title="语义预筛（Excel→TSV）" onclick="UTIL.semanticBatchDialog();">语义预筛</button>
-              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
-                title="从指定列提取符号，生成 Grapheme-IPA 正字法文件，下载后可校对再分词。"
-                onclick="UTIL.generateOrthography();">生成正字法文件</button>
-              <span class="text-muted" style="font-size:11px;white-space:nowrap;margin-left:6px;">新增列/批量赋值在右侧输入后回车</span>
-              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
-                title="上传正字法文件（TSV: Grapheme→IPA），对指定列自动分词并写入目标列。"
-                onclick="document.getElementById('orthofile_upload').click();">上传正字法并分词</button>
-              <input type="file" id="orthofile_upload" style="display:none" accept=".tsv,.txt"
-                onchange="UTIL.handleOrthoUpload(event);" />
-              <button class="btn-primary btn mright titled submit3" style="margin-left:8px;"
-                title="快速查看各方言点的概念覆盖率，判断数据是否稠密到可以继续计算。"
-                onclick="UTIL.checkCoverage();">覆盖率检查</button>
+          
+          <div class="excel-toolbar">
+            <input type="file" id="file" name="file" class="excel-file-input" style="display:none" />
+            <input type="text" id="ajaxfile" class="excel-file-input" style="display:none" />
+            <button class="excel-btn" type="button" onclick="document.getElementById('file').click();">Load File</button>
+            <div class="excel-group">
+              <input type="text" class="form-control textfield excel-input" onkeyup="showSpinner(() => {handleAjax(event,'db')});" id="database" placeholder="select database" />
+              <div id="wordlist-statistics" class="infobox hidden">no data has been loaded</div>
+              <input id="last" type="button" onclick="showWLS(1);$('#last').removeClass('unhidden').addClass('hidden');" class="submit hidden" value="&nbsp;LAST&nbsp;" />
             </div>
-            <div class="btn-group pull-right">
-              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="addColumn(event);" id="add_column" placeholder="add column" title="新增列：输入列名并回车，自动创建空列。例如添加 COGID/COGIDS/MORPHEMES。" />
-              <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="filterColumnValue(event);" id="filter_all" placeholder="COLUMN = value" title="批量赋值：填“列名=值”并回车，给该列所有行写入此值；已有列也可用来覆盖默认值。" />
+            <div id="mainsettings" class="excel-group" style="display:none">
+              <button type="button" title="refresh current dataset"
+                onclick="resetFormat(CFG['formatter']);resetRootFormat(CFG['root_formatter']);createSelectors();applyFilter();showWLS(getCurrent());display_current_cognate();" class="excel-btn">
+                Refresh
+              </button>
+            </div>
+            <div id="undoredo" class="excel-group">
+              <button title="UNDO (shortcut [CTRL+Y])" id="undo" onclick="UnDo();" class="excel-btn hidden">
+                Undo
+              </button>
+              <button title="REDO (shortcut [CTRL+Z])" id="redo" onclick="ReDo();" class="excel-btn hidden">
+                Redo
+              </button>
+            </div>
+            <!-- FILTERS -->
+            <div id="textfields" class="filters-inline" style="display:none">
+              <div class="btn-group">
+                <select class="multiselect" multiple id="select_doculects" title="filter doculects"></select>
+                <select class="multiselect" multiple id="select_concepts" title="filter concepts"></select>
+                <select class="multiselect" multiple id="select_columns" title="filter columns"></select>
+                <button class="btn-primary btn mright titled submit3" onclick="applyFilter();showWLS(getCurrent());">OK</button>
+                <!-- tools moved to Tools menu -->
+                <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="addColumn(event);" id="add_column" placeholder="add column" title="新增列：输入列名并回车，自动创建空列。例如添加 COGID/COGIDS/MORPHEMES。" />
+                <input type="text" class="form-control textfield mleft" style="width:25%;" onkeyup="filterColumnValue(event);" id="filter_all" placeholder="COLUMN = value" title="批量赋值：填“列名=值”并回车，给该列所有行写入此值；已有列也可用来覆盖默认值。" />
+                <input type="file" id="orthofile_upload" style="display:none" accept=".tsv,.txt"
+                  onchange="UTIL.handleOrthoUpload(event);" />
+              </div>
             </div>
           </div>
         </div>
@@ -332,8 +361,13 @@ EDICTOR main menu
 
           <br><br>
           <div id="db"></div>
-          <div name="wordlist" style="overflow:visible;" id="qlc" ></div>
+          <div name="wordlist" id="qlc" class="excel-table"></div>
           <div name="wordlist_help" class="help-message" style="overflow:visible;" id="wordlist_help" ></div>
+          <div id="excel-statusbar">
+            <span id="excel-status-selection">No cell selected</span>
+            <span id="excel-status-rows"></span>
+            <span id="excel-status-filter"></span>
+          </div>
           <div id="store" style="display:none"></div>
         </div>
       </li>
@@ -392,7 +426,7 @@ EDICTOR main menu
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
-          <h3 id="settings_modal_label">Settings</h3>
+          <h3 id="settings_modal_label">设置</h3>
         </div>
         <div class="modal-body">
           <div class="row">
@@ -694,7 +728,7 @@ EDICTOR main menu
     </div>
   </div>
 
-  <div id="workflow_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="workflow_modal_label">
+    <div id="workflow_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="workflow_modal_label">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header">
@@ -708,22 +742,22 @@ EDICTOR main menu
 
           <div class="workflow-step" data-step="1">
             <h4>1. 加载数据文件 / Load data</h4>
-            <p>意义：把你的词表数据加载到 EDICTOR，之后才能进行分词、同源词和对齐分析。</p>
+            <p>含义：把你的词表数据加载到 EDICTOR，之后才能进行分词、同源词和对齐分析。</p>
             <p>(Purpose: load your TSV wordlist to start segmentation and analysis.)</p>
             <button type="button" class="btn btn-primary mright" onclick="workflowOpenFilePicker();">打开文件 / Open File</button>
-            <button type="button" class="btn btn-default" onclick="toggleDisplay(event,'filedisplay');">打开文件面板 / File Panel</button>
+            <button type="button" class="btn btn-default mright" onclick="toggleDisplay(event,'filedisplay');">打开文件面板 / File Panel</button>
           </div>
 
           <div class="workflow-step" data-step="2" style="display:none">
-            <h4>2. 设定核心列 / Set core columns</h4>
-            <p>意义：确认 Tokens、COGID/COGIDS、ALIGNMENT、PATTERNS 等列名，保证后续结果写回正确列。</p>
+            <h4>2. 设置核心列 / Set core columns</h4>
+            <p>含义：确认 TOKENS、COGID/COGIDS、ALIGNMENT、PATTERNS 等列名，确保后续计算写回正确列。</p>
             <p>(Purpose: ensure output columns are correctly defined.)</p>
             <button type="button" class="btn btn-primary" onclick="workflowOpenSettings();">打开设置 / Settings</button>
           </div>
 
           <div class="workflow-step" data-step="3" style="display:none">
             <h4>3. 分词 / Tokenize</h4>
-            <p>意义：把记音切分为音段 Tokens，这是对齐和比较的基础。</p>
+            <p>含义：把记录切分为音段 Tokens，是对齐和比较的基础。</p>
             <p>(Purpose: segment transcriptions into tokens for alignment and comparison.)</p>
             <button type="button" class="btn btn-primary mright" onclick="workflowTokenizeIPA();">IPA → Tokens（ipa2tokens）</button>
             <button type="button" class="btn btn-primary" onclick="workflowOpenOrthoUpload();">上传正字法并分词 / Orthography</button>
@@ -731,23 +765,23 @@ EDICTOR main menu
 
           <div class="workflow-step" data-step="4" style="display:none">
             <h4>4. 检查 Tokens 列 / Verify tokens</h4>
-            <p>意义：检查分词结果是否写入正确列，确保后续算法使用正确 Tokens。</p>
+            <p>含义：检查分词结果是否写入正确列，确保后续算法使用正确 Tokens。</p>
             <p>(Purpose: confirm tokens are stored in the right column.)</p>
             <button type="button" class="btn btn-primary" onclick="workflowOpenSettings();">检查列设置 / Review</button>
           </div>
 
           <div class="workflow-step" data-step="5" style="display:none">
             <h4>5. 计算同源词 / Compute cognates</h4>
-            <p>意义：在分词基础上自动划分同源词集，为对齐和对应规则提供基础。</p>
+            <p>含义：在分词基础上自动划分同源词集合，为对齐与对应规则提供基础。</p>
             <p>(Purpose: compute cognate sets to support alignments and correspondence patterns.)</p>
             <button type="button" class="btn btn-primary" onclick="workflowOpenComputeCognates();">计算同源词 / Cognates</button>
-            <p style="margin-top:10px">后续可在 COMPUTE 里计算对齐与对应模式。</p>
+            <p style="margin-top:10px">后续可在 COMPUTE 中计算对齐与对应模式。</p>
           </div>
 
           <div class="workflow-step" data-step="6" style="display:none">
-            <h4>6. Distances & Tree</h4>
-            <p>Compute the distance matrix and generate a tree for overview and comparison.</p>
-            <button type="button" class="btn btn-primary" onclick="workflowOpenComputeDistances();">Distances & Tree</button>
+            <h4>6. 距离与谱系树 / Distances & Tree</h4>
+            <p>计算距离矩阵并生成树，用于整体对比与概览。</p>
+            <button type="button" class="btn btn-primary" onclick="workflowOpenComputeDistances();">距离与谱系树</button>
           </div>
         </div>
         <div class="modal-footer">
@@ -896,3 +930,4 @@ EDICTOR main menu
 
 </body>
 </html>
+

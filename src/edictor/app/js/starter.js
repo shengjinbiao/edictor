@@ -116,6 +116,20 @@ function basickeydown (event) {
     event.preventDefault();
     ReDo();
   }
+  /* ctrl c/v for active cell when not editing */
+  else if ((event.keyCode == 67 || event.keyCode == 86) && event.ctrlKey) {
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+      return;
+    }
+    event.preventDefault();
+    if (event.keyCode == 67) {
+      if (typeof copyActiveCell === 'function') { copyActiveCell(); }
+    }
+    else {
+      if (typeof pasteActiveCell === 'function') { pasteActiveCell(); }
+    }
+  }
   /* save page */
   else if (event.keyCode == 69 && event.ctrlKey) {
     event.preventDefault();
@@ -212,7 +226,10 @@ function modifyDisplayForStart() {
     document.getElementById('add_column').style.display = 'none';
     document.getElementById('mainsettings').style.display = 'none';
     document.getElementById('file').style.display = 'none';
-    document.getElementById('ajaxfile').style.display = 'none';
+    var ajaxfile = document.getElementById('ajaxfile');
+    if (ajaxfile) {
+      ajaxfile.style.display = 'none';
+    }
     document.getElementById('menu_handle').style.width = '90%';
     document.getElementById('menu').style.minHeight = "80px";
     document.getElementById('menu').style.margin = "5px";
@@ -469,6 +486,23 @@ function loadAjax(event, where, what, classes) {
 
 }
 
+function openRemoteFilePrompt() {
+  var url = prompt("Remote TSV or database name/URL:");
+  if (!url) {
+    return;
+  }
+  var input = document.getElementById('ajaxfile');
+  if (input) {
+    input.value = url;
+  }
+  if (typeof showSpinner === 'function') {
+    showSpinner(() => { handleAjax("event", "url"); });
+  }
+  else {
+    handleAjax("event", "url");
+  }
+}
+
 function openSettingsModal(event) {
   if (event && event.preventDefault) { event.preventDefault(); }
   if ($('#settings_modal').hasClass('in')) {
@@ -663,6 +697,61 @@ function workflowTokenizeIPA() {
   CFG.tokens = header[destIdx];
   showWLS(getCurrent());
   fakeAlert('Tokenization complete. Updated ' + changed + ' rows.');
+}
+
+function computeTokenizeIPA() {
+  if (!WLS || !WLS.header) {
+    fakeAlert('Load a TSV file first.');
+    return;
+  }
+  var header = WLS.header || [];
+  var tokensIdx = header.indexOf("TOKENS");
+  if (tokensIdx === -1) {
+    tokensIdx = UTIL.ensureColumn("TOKENS");
+    if (tokensIdx === -1) {
+      fakeAlert("Could not create TOKENS column.");
+      return;
+    }
+    CFG._segments = tokensIdx;
+    CFG.tokens = header[tokensIdx];
+    var tokensInput = document.getElementById("settings_tokens");
+    if (tokensInput) { tokensInput.value = header[tokensIdx]; }
+  } else {
+    if (!confirm("TOKENS 列已存在，是否覆盖自动分词结果？")) {
+      return;
+    }
+  }
+
+  var srcIdx = CFG._transcriptions;
+  if (typeof srcIdx !== "number" || srcIdx < 0) {
+    if (header.indexOf("IPA") !== -1) {
+      srcIdx = header.indexOf("IPA");
+    } else if (header.indexOf("FORM") !== -1) {
+      srcIdx = header.indexOf("FORM");
+    } else {
+      var src = prompt("Select source column for IPA tokenization", header[0]);
+      if (!src) { return; }
+      srcIdx = header.indexOf(src);
+      if (srcIdx === -1) {
+        fakeAlert("Column not found: " + src);
+        return;
+      }
+    }
+  }
+
+  var changed = 0;
+  for (var key in WLS) {
+    if (!isNaN(key)) {
+      var val = WLS[key][srcIdx] || "";
+      var tokens = UTIL.ipaToTokens(String(val));
+      WLS[key][tokensIdx] = tokens.join(" ");
+      changed += 1;
+    }
+  }
+  CFG._segments = tokensIdx;
+  CFG.tokens = header[tokensIdx];
+  showWLS(getCurrent());
+  fakeAlert("Tokenization complete. Updated " + changed + " rows.");
 }
 
 function workflowOpenComputeCognates() {

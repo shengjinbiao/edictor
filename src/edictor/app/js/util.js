@@ -456,7 +456,11 @@ UTIL.semanticBatchUpload = function (evt) {
     contentType: false,
     success: function (data) {
       var resp;
-      try { resp = JSON.parse(data); } catch (e) { resp = {error: "Invalid response"}; }
+      if (typeof data === "string") {
+        try { resp = JSON.parse(data); } catch (e) { resp = {error: "Invalid response"}; }
+      } else {
+        resp = data;
+      }
       if (resp.error) {
         if (status) { status.innerText = "Upload failed: " + resp.error; }
         return;

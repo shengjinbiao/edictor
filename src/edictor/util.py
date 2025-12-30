@@ -9,8 +9,8 @@ import codecs
 import getpass
 import signal
 import re
-import io
-import cgi
+from email.parser import BytesParser
+from email.policy import default as email_default
 
 from urllib.request import urlopen
 
@@ -116,10 +116,10 @@ def download(s, post):
 
 
 def send_response(s, content, content_type="text/html",
-                  content_disposition=None, encode=True):
+                  content_disposition=None, encode=True, status_code=200):
     if encode:
         content = bytes(content, "utf-8")
-    s.send_response(200)
+    s.send_response(status_code)
     s.send_header("Content-type", content_type)
     if content_disposition:
         s.send_header("Content-disposition", content_disposition)
@@ -216,6 +216,7 @@ def file_handler(s, ft, fn):
     """
     message = b"404 FNF"
     ctype = DATA.get(ft, "text/plain; charset=utf-8")
+    status_code = 200
     if ft in ["js", "html", "css", "csv"]:
         try:
             with codecs.open(edictor_path(fn[1:]), "r", "utf-8") as f:
@@ -223,6 +224,8 @@ def file_handler(s, ft, fn):
         except FileNotFoundError:
             message = b"404 FNF"
             ctype = "text/plain; charset=utf-8"
+            status_code = 404
+            print("Missing static file:", fn)
     elif ft == "tsv":
         # if a file is in the same folder where the app was started, it is
         # marked by preceding it with "/data/" by the JS application, so
@@ -236,6 +239,8 @@ def file_handler(s, ft, fn):
                     message = bytes(f.read(), "utf-8")
             else:
                 message = b"404 FNF"
+                status_code = 404
+                print("Missing TSV file:", fn)
     elif ft in ["png", "ttf", "jpg", "woff"]:
         try:
             with codecs.open(edictor_path(fn[1:]), 'rb', None) as f:
@@ -243,7 +248,9 @@ def file_handler(s, ft, fn):
         except FileNotFoundError:
             message = b"404 FNF"
             ctype = "application/octet-stream"
-    send_response(s, message, ctype, encode=False)
+            status_code = 404
+            print("Missing binary file:", fn)
+    send_response(s, message, ctype, encode=False, status_code=status_code)
 
 
 def serve_base(s, conf):
@@ -877,18 +884,19 @@ def upload_semantic_file(s, post_data_bytes, headers):
         )
         return
 
-    environ = {
-        "REQUEST_METHOD": "POST",
-        "CONTENT_TYPE": content_type,
-        "CONTENT_LENGTH": str(len(post_data_bytes)),
-    }
-    form = cgi.FieldStorage(
-        fp=io.BytesIO(post_data_bytes),
-        headers=headers,
-        environ=environ,
-        keep_blank_values=True,
+    msg_bytes = (
+        b"Content-Type: " + content_type.encode("utf-8") +
+        b"\r\nMIME-Version: 1.0\r\n\r\n" + post_data_bytes
     )
-    if "file" not in form:
+    msg = BytesParser(policy=email_default).parsebytes(msg_bytes)
+    file_item = None
+    for part in msg.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            continue
+        if part.get_param("name", header="content-disposition") == "file":
+            file_item = part
+            break
+    if file_item is None:
         send_response(
             s,
             json.dumps({"error": "Missing file."}),
@@ -896,24 +904,15 @@ def upload_semantic_file(s, post_data_bytes, headers):
         )
         return
 
-    file_item = form["file"]
-    if not getattr(file_item, "file", None):
-        send_response(
-            s,
-            json.dumps({"error": "Invalid upload."}),
-            content_type="application/json; charset=utf-8",
-        )
-        return
-
     upload_dir = Path.cwd().joinpath("uploads")
     upload_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = _safe_upload_name(getattr(file_item, "filename", ""))
+    safe_name = _safe_upload_name(file_item.get_filename())
     suffix = Path(safe_name).suffix or ".xlsx"
     stem = Path(safe_name).stem or "upload"
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     target = upload_dir.joinpath(f"{stem}-{stamp}{suffix}")
     with open(target, "wb") as out:
-        out.write(file_item.file.read())
+        out.write(file_item.get_payload(decode=True) or b"")
 
     send_response(
         s,

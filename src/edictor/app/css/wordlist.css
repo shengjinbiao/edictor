@@ -1,6 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap");
+
 :root {
-  --blue: #2D6CA2;
-  --crimson: #dc143c;
+  --blue: #1f4e79;
+  --crimson: #d13c3c;
+  --ink: #1f2933;
+  --muted: #6b7280;
+  --panel: #f6f4f0;
+  --panel-strong: #ede7de;
+  --grid: #d8d2c8;
+  --accent: #2a9d8f;
+  --accent-strong: #1f7f72;
+}
+
+body {
+  font-family: "Space Grotesk", "Helvetica Neue", sans-serif;
+  background: radial-gradient(circle at 20% 20%, #f8f3ea 0%, #f3efe7 40%, #ece7de 100%);
+  color: var(--ink);
 }
 
 .compute-modal .modal-body {
@@ -18,23 +33,31 @@
 
 #qlc_table {
   border-collapse: separate;
-  border-spacing: 2px;
-  border-radius: 2px;
+  border-spacing: 1px;
+  border-radius: 8px;
   empty-cells: show;
+  background: var(--grid);
+  font-size: 13px;
 }
 
 #qlc_table th {
   text-align: left;
-  background-color: var(--blue);
-  color: white;
-  border: solid 1px var(--blue);
-  max-width: 250px;
-  overflow: auto;
-  padding: 5px;
+  background: #1f2933;
+  color: #f8fafc;
+  border: solid 1px #1f2933;
+  max-width: 260px;
+  overflow: hidden;
+  padding: 8px 10px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: -webkit-grabbing;
-  cursor: -moz-grabbing;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#qlc_table th.sort-active {
+  background: var(--accent-strong);
 }
 
 .data_table2 {
@@ -93,125 +116,264 @@
   display: block;
   position: relative;
   clear: both;
-  border: 2px solid var(--blue);
-  margin-top: 20px;
+  border: none;
+  margin-top: 8px;
   margin-left: 5px;
   margin-right: 5px;
-  padding-bottom: 25px;
-  padding-left: 25px;
-  padding-right: 25px;
-  padding-top: 10px;
-  border-radius: 5px;
-  min-height: 150px;
+  padding: 6px 8px;
+  border-radius: 0;
+  min-height: 0;
   overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
+.excel-menu-nav {
+  margin-left: 20px;
+}
+
+.excel-menu-nav > li > a {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 12px;
+  padding-top: 16px;
+  padding-bottom: 14px;
+}
+
+.excel-menu-nav .dropdown-menu > li > a {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #ffffff;
+}
+
+.excel-menu-nav .dropdown-menu > li > a:hover,
+.excel-menu-nav .dropdown-menu > li > a:focus {
+  color: #ffffff;
+}
+
+.excel-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 8px 0 2px;
+  overflow: visible;
+  align-items: center;
+}
+
+.excel-toolbar-secondary {
+  padding-top: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--grid);
+}
+
+.excel-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #fffaf2;
+  border: 1px solid rgba(31, 41, 51, 0.08);
+  flex: 0 0 auto;
+}
+
+#wordlist-statistics {
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.excel-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.excel-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.excel-btn:hover {
+  background: var(--accent-strong);
+}
+
+.excel-btn-ghost {
+  background: #f7f4ee;
+  color: var(--ink);
+  border: 1px solid rgba(31, 41, 51, 0.15);
+}
+
+.excel-btn-ghost:hover {
+  background: #eee9e0;
+}
+
+.excel-input,
+.excel-select {
+  min-width: 120px;
+  border-radius: 7px;
+  border: 1px solid rgba(31, 41, 51, 0.2);
+  height: 30px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.excel-dropdown {
+  position: relative;
+}
+
+.excel-dropdown-menu {
+  padding: 10px 12px;
+  min-width: 240px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 41, 51, 0.15);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  background: #fffaf2;
+}
+
+.excel-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.excel-dropdown-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.menu-form {
+  padding: 6px 12px 10px;
+  min-width: 260px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+}
+
+.menu-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.menu-form-row label {
+  width: 60px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+
+.menu-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.menu-form .excel-btn {
+  background: var(--accent);
+}
+
+.menu-form .excel-btn:hover {
+  background: var(--accent-strong);
+}
+
+.menu-form .excel-input,
+.menu-form .excel-select {
+  background: #fff;
+  color: #1f2933;
+  border: 1px solid rgba(31, 41, 51, 0.2);
+}
+
+.excel-file-input {
+  display: none !important;
+}
+
+.excel-table {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--grid);
+  padding: 4px;
+  max-height: 62vh;
+  overflow: auto;
+}
+
+#qlc_table td {
+  text-align: left;
+  color: var(--ink);
+  border: solid 1px var(--grid);
+  max-width: 260px;
+  overflow: hidden;
+  padding: 6px 8px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #fffdf9;
+}
+
+#qlc_table td.cell-active {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: #f0faf7;
+}
+
+#excel-statusbar {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 4px 0;
 }
 
 @media screen and (max-width: 600px) {
   #qlc_table th {
-    text-align: left;
-    background-color: var(--blue);
-    color: white;
-    border: solid 1px var(--blue);
-    ;
     max-width: 200px;
-    font-size: 50%;
-    overflow: auto;
-    text-overflow: ellipsis;
-    padding: 3px;
-    cursor: -webkit-grabbing;
-    cursor: -moz-grabbing;
+    font-size: 11px;
+    padding: 6px 8px;
   }
 
   #qlc_table td {
-    text-align: left;
-    background-color: white;
-    color: black;
-    border: solid 1px var(--blue);
-    ;
     max-width: 200px;
-    overflow: auto;
-    font-size: 50%;
-    padding: 5px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    font-size: 11px;
+    padding: 6px 8px;
   }
 
   #menu {
-    display: block;
-    position: relative;
-    clear: both;
-    border: 2px solid var(--blue);
-    margin-top: 20px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding-bottom: 25px;
-    padding-left: 25px;
-    padding-right: 25px;
-    padding-top: 10px;
-    border-radius: 5px;
-    min-height: 350px;
-    overflow: visible;
+    min-height: 260px;
+    padding: 12px;
   }
 }
 
 @media screen and (max-width: 1000px) and (min-width: 601px) {
   #qlc_table th {
-    text-align: left;
-    background-color: var(--blue);
-    color: white;
-    border: solid 1px var(--blue);
-    ;
     max-width: 220px;
-    font-size: 80%;
-    overflow: auto;
-    text-overflow: ellipsis;
-    padding: 3px;
-    cursor: -webkit-grabbing;
-    cursor: -moz-grabbing;
+    font-size: 12px;
+    padding: 6px 8px;
   }
 
   #qlc_table td {
-    text-align: left;
-    color: black;
-    border: solid 1px var(--blue);
-    ;
     max-width: 220px;
-    overflow: auto;
-    font-size: 80%;
-    padding: 5px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    font-size: 12px;
+    padding: 6px 8px;
   }
 
   #menu {
-    display: block;
-    position: relative;
-    clear: both;
-    border: 2px solid var(--blue);
-    margin-top: 20px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding-bottom: 25px;
-    padding-left: 25px;
-    padding-right: 25px;
-    padding-top: 10px;
-    border-radius: 5px;
-    min-height: 175px;
-    overflow: visible;
+    min-height: 180px;
+    padding: 14px;
   }
 
-}
-
-#qlc_table td {
-  text-align: left;
-  color: black;
-  border: solid 1px var(--blue);
-  ;
-  max-width: 250px;
-  overflow: auto;
-  padding: 5px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .hidden {
@@ -293,10 +455,37 @@
 }
 
 #textfields {
-  display: block;
-  float: left;
-  max-width: 1000px;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: auto;
+}
+
+#textfields .btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+#add_column,
+#filter_all {
+  min-width: 140px;
+  max-width: 180px;
+}
+
+.filters-inline {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #fffaf2;
+  border: 1px solid rgba(31, 41, 51, 0.08);
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.filters-inline .btn-group {
+  overflow: visible;
 }
 
 .settings {
