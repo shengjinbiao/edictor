@@ -1420,8 +1420,9 @@ function editEntry(
   }
 
   /* check for hidden columns and skip them if necessary */
-  var col = document.getElementById(entry.className);
-  if (col.style.visibility == 'hidden') {
+  var colId = (entry.className || "").split(/\s+/)[0];
+  var col = colId ? document.getElementById(colId) : null;
+  if (col && col.style.visibility == 'hidden') {
     if (from_jdx > jdx) {
       editEntry(idx, jdx - 1, from_idx, from_jdx);
     }

@@ -1,4 +1,4 @@
-var SND = {
+﻿var SND = {
   data: null,
   concept: "",
   segments: {},
@@ -24,6 +24,37 @@ SND._collectConceptIndices = function (concept) {
     return WLS.concepts[concept].slice();
   }
   return [];
+};
+
+SND._getAlignParts = function (idx) {
+  var alIdx = CFG._alignments;
+  var raw = "";
+  if (typeof alIdx === "number" && alIdx > -1 && WLS[idx][alIdx]) {
+    raw = String(WLS[idx][alIdx]).trim();
+  } else {
+    var segIdx = CFG._segments;
+    if (typeof segIdx === "number" && segIdx > -1 && WLS[idx][segIdx]) {
+      raw = String(WLS[idx][segIdx]).trim();
+    }
+  }
+  if (!raw) { return []; }
+  var parts = raw.split(/\s+\+\s+/);
+  if (parts.length === 1) { parts = [raw]; }
+  return parts.map(function (part) {
+    return part.split(/\s+/).filter(function (t) { return t && t !== "+"; });
+  });
+};
+
+SND._getCogidParts = function (idx, cogIdx) {
+  if (typeof cogIdx !== "number" || cogIdx < 0) { return []; }
+  var raw = WLS[idx][cogIdx];
+  if (raw === undefined || raw === null) { return []; }
+  var text = String(raw).trim();
+  if (!text) { return []; }
+  if (text.indexOf("+") > -1) {
+    return text.split(/\s*\+\s*/).filter(function (p) { return p; });
+  }
+  return text.split(/\s+/).filter(function (p) { return p; });
 };
 
 SND._getAlignTokens = function (idx) {
@@ -55,15 +86,25 @@ SND._langKey = function (a, b) {
   return (a <= b) ? (a + "||" + b) : (b + "||" + a);
 };
 
-SND._compute = function (indices, cogIdx) {
+SND._compute = function (indices, cogIdx, mode) {
   var groups = {};
   for (var i = 0; i < indices.length; i += 1) {
     var idx = indices[i];
-    var cog = WLS[idx][cogIdx];
-    if (cog === undefined || cog === null) { continue; }
-    var cogid = String(cog).split(/\s+/)[0];
-    if (!groups.hasOwnProperty(cogid)) { groups[cogid] = []; }
-    groups[cogid].push(idx);
+    if (mode === "partial") {
+      var parts = SND._getCogidParts(idx, cogIdx);
+      for (var p = 0; p < parts.length; p += 1) {
+        var pid = parts[p];
+        if (!pid) { continue; }
+        if (!groups.hasOwnProperty(pid)) { groups[pid] = []; }
+        groups[pid].push({ idx: idx, partIndex: p });
+      }
+    } else {
+      var cog = WLS[idx][cogIdx];
+      if (cog === undefined || cog === null) { continue; }
+      var cogid = String(cog).split(/\s+/)[0];
+      if (!groups.hasOwnProperty(cogid)) { groups[cogid] = []; }
+      groups[cogid].push({ idx: idx, partIndex: 0 });
+    }
   }
 
   for (var key in groups) {
@@ -72,9 +113,16 @@ SND._compute = function (indices, cogIdx) {
     var entries = [];
     var maxLen = 0;
     for (var j = 0; j < rows.length; j += 1) {
-      var idx = rows[j];
+      var idx = rows[j].idx;
+      var partIndex = rows[j].partIndex || 0;
       var lang = WLS[idx][CFG._taxa];
-      var toks = SND._getAlignTokens(idx);
+      var toks = [];
+      if (mode === "partial") {
+        var partsTokens = SND._getAlignParts(idx);
+        toks = (partIndex < partsTokens.length) ? partsTokens[partIndex] : [];
+      } else {
+        toks = SND._getAlignTokens(idx);
+      }
       if (!toks.length) { continue; }
       maxLen = Math.max(maxLen, toks.length);
       entries.push({ lang: lang, tokens: toks });
@@ -136,20 +184,27 @@ SND._clearLog = function () {
   if (log) { log.innerHTML = ""; }
 };
 
-SND._renderParams = function (topN, minCount, indices) {
+SND._renderParams = function (topN, minCount, indices, mode) {
   var params = document.getElementById("soundchange_params");
   if (!params) { return; }
   var al = (typeof CFG._alignments === "number" && CFG._alignments > -1) ? WLS.header[CFG._alignments] : "TOKENS";
   var tok = (typeof CFG._segments === "number" && CFG._segments > -1) ? WLS.header[CFG._segments] : "-";
-  var cog = (typeof CFG._cognates === "number" && CFG._cognates > -1) ? WLS.header[CFG._cognates] : "-";
+  var cog = "-";
+  if (mode === "partial") {
+    cog = (typeof CFG._roots === "number" && CFG._roots > -1) ? WLS.header[CFG._roots] : "-";
+  } else {
+    cog = (typeof CFG._cognates === "number" && CFG._cognates > -1) ? WLS.header[CFG._cognates] : "-";
+  }
+  var modeLabel = (mode === "partial") ? "PARTIAL" : "FULL";
   params.innerHTML = ""
-    + "<div>概念 / Concept: " + SND.concept + "</div>"
-    + "<div>行数 / Rows: " + indices.length + "</div>"
-    + "<div>COGID 列: " + cog + "</div>"
-    + "<div>ALIGNMENT 列: " + al + "</div>"
-    + "<div>TOKENS 列: " + tok + "</div>"
-    + "<div>Top N 音段: " + topN + "</div>"
-    + "<div>最小计数: " + minCount + "</div>";
+    + "<div>Mode: " + modeLabel + "</div>"
+    + "<div>Concept: " + SND.concept + "</div>"
+    + "<div>Rows: " + indices.length + "</div>"
+    + "<div>COGID column: " + cog + "</div>"
+    + "<div>ALIGNMENT column: " + al + "</div>"
+    + "<div>TOKENS column: " + tok + "</div>"
+    + "<div>Top N segments: " + topN + "</div>"
+    + "<div>Min count: " + minCount + "</div>";
 };
 
 SND._renderNotes = function () {
@@ -329,11 +384,7 @@ SND.showLanguageGraph = function () {
 
 SND.run = function () {
   if (!WLS || !WLS.header) {
-    SND._setStatus("错误：请先加载 TSV 文件。", true);
-    return;
-  }
-  if (CFG._morphology_mode === "partial") {
-    SND._setStatus("错误：当前仅支持 full cognates。请在设置里切换到 FULL 模式。", true);
+    SND._setStatus("错误：请先加载TSV文件。", true);
     return;
   }
   var concept = document.getElementById("soundchange_concept").value.trim();
@@ -341,9 +392,13 @@ SND.run = function () {
     SND._setStatus("错误：请输入概念。", true);
     return;
   }
-  var cogIdx = CFG._cognates;
+  var mode = (CFG._morphology_mode === "partial") ? "partial" : "full";
+  var cogIdx = (mode === "partial") ? CFG._roots : CFG._cognates;
   if (typeof cogIdx !== "number" || cogIdx < 0) {
-    SND._setStatus("错误：未设置 COGID 列。", true);
+    var missingMsg = (mode === "partial")
+      ? "错误：缺少 PARTIALIDS/COGIDS 列。"
+      : "错误：缺少 COGID 列。";
+    SND._setStatus(missingMsg, true);
     return;
   }
   var indices = SND._collectConceptIndices(concept);
@@ -354,15 +409,15 @@ SND.run = function () {
   SND._clear();
   SND._clearLog();
   SND.concept = concept;
-  SND._appendLog("开始分析概念: " + concept);
-  SND._compute(indices, cogIdx);
+  SND._appendLog("Start sound change analysis: " + concept + " (" + mode + ")");
+  SND._compute(indices, cogIdx, mode);
   SND.data = true;
   var topN = parseInt(document.getElementById("soundchange_topn").value, 10) || 20;
   var minCount = parseInt(document.getElementById("soundchange_mincount").value, 10) || 2;
   SND._renderSummary(indices);
   SND._renderList(minCount);
   SND._renderHeatmap(topN);
-  SND._renderParams(topN, minCount, indices);
+  SND._renderParams(topN, minCount, indices, mode);
   SND._renderNotes();
   SND._appendLog("完成统计：对应对数 " + Object.keys(SND.pairs).length);
 };
@@ -370,7 +425,7 @@ SND.run = function () {
 function openSoundChangeModal(event) {
   if (event && event.preventDefault) { event.preventDefault(); }
   if (!WLS || !WLS.concepts) {
-    SND._setStatus("错误：请先加载 TSV 文件。", true);
+    SND._setStatus("错误：请先加载TSV文件。", true);
     return;
   }
   SND._clearLog();
@@ -388,3 +443,9 @@ function openSoundChangeModal(event) {
   }
   $('#soundchange_modal').modal('show');
 }
+
+
+
+
+
+

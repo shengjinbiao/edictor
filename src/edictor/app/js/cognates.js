@@ -56,7 +56,7 @@ function display_cognates(concept, sortby = 2) {
   let option;
   let selected_concepts;
   let idxs;
-  if (typeof concept === 'undefined' || !concept) {
+    if (typeof concept === 'undefined' || !concept) {
     /* set up variable for integer ids of concepts to get them passed to the function that
      * handles the restricted file display of the wordlist */
     selected_concepts = [];
@@ -64,10 +64,10 @@ function display_cognates(concept, sortby = 2) {
     /* get the word ids for the selected concepts */
     // noinspection JSMismatchedCollectionQueryUpdate
     idxs = [];
-    const slc = document.getElementById('cognates_select_concepts');
-    if (typeof slc === 'undefined' || slc === null) {
-      return;
-    }
+      const slc = document.getElementById('cognates_select_concepts');
+      if (!slc) {
+        return;
+      }
     const all_concepts = []; /* set up restriction to maximally five concepts per slot */
     let restriction = 1;
     for (let i = 0; i < slc.options.length; i += 1) {
@@ -101,19 +101,24 @@ function display_cognates(concept, sortby = 2) {
   }
   /* if the concept is not undefined, we have to change the multiselect options to display what
    * we really want to see */
-  else {
-    idxs = WLS.concepts[concept];
+    else {
+      idxs = WLS.concepts[concept];
 
-    selected_concepts = `${WLS.c2i[concept]}`;
+      selected_concepts = `${WLS.c2i[concept]}`;
 
-    $('#cognates_select_concepts').multiselect('deselectAll', false);
-    $('#cognates_select_concepts').multiselect('select', concept);
+    if ($('#cognates_select_concepts').length) {
+      $('#cognates_select_concepts').multiselect('deselectAll', false);
+      $('#cognates_select_concepts').multiselect('select', concept);
+    }
 
-    /* don't forget to also change the internal options which are not displayed here */
+      /* don't forget to also change the internal options which are not displayed here */
     const slcs = document.getElementById('cognates_select_concepts');
-    for (let k = 0; k < slcs.options.length; k++) {
-      option = slcs.options[k];
-      if (option.selected && option.value !== concept) {
+    if (!slcs) {
+      return;
+    }
+      for (let k = 0; k < slcs.options.length; k++) {
+        option = slcs.options[k];
+        if (option.selected && option.value !== concept) {
         option.selected = false;
       } else if (option.value === concept) {
         option.selected = true;
@@ -304,6 +309,9 @@ function get_selected_indices() {
   /* get the word ids for the selected concepts */
   const idxs = [];
   const slc = document.getElementById('cognates_select_concepts');
+  if (!slc) {
+    return idxs;
+  }
   for (let i = 0; i < slc.options.length; i += 1) {
     const option = slc.options[i];
     if (option.selected) {
@@ -506,8 +514,11 @@ function resolveCognateIndex() {
       CFG._cognates = CFG._fidx;
       idx = CFG._cognates;
     } else {
-      var name = (CFG._morphology_mode === "partial") ? "COGIDS" : "COGID";
+      var name = (CFG._morphology_mode === "partial") ? "PARTIALIDS" : "COGID";
       var alt = WLS.header.indexOf(name);
+      if (alt === -1 && CFG._morphology_mode === "partial") {
+        alt = WLS.header.indexOf("COGIDS");
+      }
       if (alt !== -1) {
         if (CFG._morphology_mode === "partial") {
           CFG._roots = alt;
@@ -529,7 +540,7 @@ COGNACY.lingpy_cognates = () => {
   const feedback = document.getElementById("icognates_table");
   let cognates = resolveCognateIndex();
   if (typeof cognates !== "number" || cognates < 0) {
-    const defaultName = CFG._morphology_mode === "partial" ? "COGIDS" : "COGID";
+    const defaultName = CFG._morphology_mode === "partial" ? "PARTIALIDS" : "COGID";
     const name = prompt("未设置同源编号列，输入要创建的列名（默认 " + defaultName + "）", defaultName);
     if (!name) { return; }
     const idx = UTIL.ensureColumn(name);
@@ -613,7 +624,7 @@ COGNACY.compute_cognates = () => {
     : -1;
   if (formatter === -1) {
     /* 提示自动创建 cognate 列 */
-    const defaultName = CFG._morphology_mode === "partial" ? "COGIDS" : "COGID";
+    const defaultName = CFG._morphology_mode === "partial" ? "PARTIALIDS" : "COGID";
     const name = prompt("未设置同源编号列，输入要创建的列名（默认 " + defaultName + "）", defaultName);
     if (!name) { return; }
     const idx = UTIL.ensureColumn(name);

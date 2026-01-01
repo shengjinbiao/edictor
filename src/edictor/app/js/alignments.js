@@ -695,6 +695,7 @@ ALIGN.lingpy_alignments = function () {
   if (!ALIGN.ensureCognatesReady()) {
     return;
   }
+  const method = ALIGN.getSelectedMethod();
   const date = new Date().toString();
   const feedback = document.getElementById("ialms_table");
   const cognates = (CFG._morphology_mode === "partial") ? CFG._roots : CFG._cognates;
@@ -723,7 +724,8 @@ ALIGN.lingpy_alignments = function () {
     data: {
       "wordlist": wordlist,
       "mode": CFG._morphology_mode,
-      "ref": WLS.header[cognates]
+      "ref": WLS.header[cognates],
+      "method": method
     },
     dataType: "text",
     success: function (data) {
@@ -745,7 +747,7 @@ ALIGN.lingpy_alignments = function () {
             "<tr><td>Cognate Mode</td><td>" + CFG._morphology_mode + "</td></tr>" +
             "<tr><td>Alignment Column</td><td>" + CFG._almcol + "</td></tr>" +
             "<tr><td>Cognate Column</td><td>" + WLS.header[cognates] + "</td></tr>" +
-            "<tr><td>Algorithm</td><td>SCA (LingPy)</td></tr>" +
+            "<tr><td>Algorithm</td><td>" + ALIGN.getMethodLabel(method) + "</td></tr>" +
             "</table>";
       }, 1);
     },
@@ -847,4 +849,23 @@ ALIGN.automated_alignments = function () {
   );
 
 
+};
+
+ALIGN.getSelectedMethod = function () {
+  var el = document.getElementById("compute_alignment_method");
+  if (el && el.value) {
+    return el.value;
+  }
+  return CFG.with_lingpy ? "library" : "edictor";
+};
+
+ALIGN.getMethodLabel = function (method) {
+  var labels = {
+    edictor: "Longest Sequence (EDICTOR)",
+    progressive: "SCA Progressive (LingPy)",
+    library: "SCA Library (LingPy)",
+    sw: "Smith-Waterman (LingPy pairwise)",
+    nw: "Needleman-Wunsch (LingPy pairwise)"
+  };
+  return labels[method] || method;
 };

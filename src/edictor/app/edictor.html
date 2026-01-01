@@ -597,12 +597,23 @@ EDICTOR main menu
             <span aria-hidden="true">&times;</span>
           </button>
           <h3 id="compute_cognates_modal_label">Compute Cognate Sets</h3>
-        </div>
-        <div class="modal-body" id="compute_cognates_modal_body">
-          <div class="btn-group" style="margin-bottom:10px">
-            <label class="btn btn-primary mright" for="compute_cognate_threshold">THR.</label>
-            <input id="compute_cognate_threshold" class="btn btn-primary mright"
-              style="width:80px" type="number" step="0.05" min="0.05" max="0.95" value="0.45">
+          </div>
+          <div class="modal-body" id="compute_cognates_modal_body">
+            <table class="settings settings-table" style="margin-bottom:15px">
+              <tr title="Select cognate mode for computation.">
+                <th>Cognate Mode</th>
+                <td>
+                  <select id="compute_cognate_mode" class="form-control textfield" style="width:250px">
+                    <option value="full">Full (COGID)</option>
+                    <option value="partial">Partial (PARTIALIDS)</option>
+                  </select>
+                </td>
+              </tr>
+            </table>
+            <div class="btn-group" style="margin-bottom:10px">
+              <label class="btn btn-primary mright" for="compute_cognate_threshold">THR.</label>
+              <input id="compute_cognate_threshold" class="btn btn-primary mright"
+                style="width:80px" type="number" step="0.05" min="0.05" max="0.95" value="0.45">
             <button type="button" class="btn btn-primary mright" onclick="submitComputeCognates();">SUBMIT</button>
             <button type="button" class="btn btn-primary" title="show help"
               onclick="UTIL.show_help('icognates','icognates_table','compute_cognates_modal_body');">
@@ -627,11 +638,25 @@ EDICTOR main menu
             <span aria-hidden="true">&times;</span>
           </button>
           <h3 id="compute_alignments_modal_label">Compute Alignments</h3>
-        </div>
-        <div class="modal-body" id="compute_alignments_modal_body">
-          <div class="btn-group" style="margin-bottom:10px">
-            <button type="button" class="btn btn-primary mright" onclick="submitComputeAlignments();">SUBMIT</button>
-            <button type="button" class="btn btn-primary" title="show help"
+          </div>
+          <div class="modal-body" id="compute_alignments_modal_body">
+            <table class="settings settings-table" style="margin-bottom:15px">
+              <tr title="Select the alignment algorithm.">
+                <th>Algorithm</th>
+                <td>
+                  <select id="compute_alignment_method" class="form-control textfield" style="width:250px">
+                    <option value="edictor">Longest Sequence (EDICTOR)</option>
+                    <option value="progressive">SCA Progressive (LingPy)</option>
+                    <option value="library">SCA Library (LingPy)</option>
+                    <option value="sw">Smith-Waterman (LingPy pairwise)</option>
+                    <option value="nw">Needleman-Wunsch (LingPy pairwise)</option>
+                  </select>
+                </td>
+              </tr>
+            </table>
+            <div class="btn-group" style="margin-bottom:10px">
+              <button type="button" class="btn btn-primary mright" onclick="submitComputeAlignments();">SUBMIT</button>
+              <button type="button" class="btn btn-primary" title="show help"
               onclick="UTIL.show_help('ialms','ialms_table','compute_alignments_modal_body');">
               <span class="glyphicon glyphicon-question-sign"></span>
             </button>

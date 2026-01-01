@@ -522,6 +522,7 @@ function openComputeCognatesModal(event) {
   if (input && typeof CFG.cognate_threshold !== 'undefined') {
     input.value = CFG.cognate_threshold;
   }
+  updateCognateModeSelect();
   $('#compute_cognates_modal').modal('show');
 }
 
@@ -530,6 +531,7 @@ function openComputeAlignmentsModal(event) {
   if ($('#compute_alignments_modal').hasClass('in')) {
     return;
   }
+  updateAlignmentMethodSelect();
   $('#compute_alignments_modal').modal('show');
 }
 
@@ -550,7 +552,17 @@ function openComputeDistancesModal(event) {
 }
 
 function submitComputeCognates() {
-  var input = document.getElementById('compute_cognate_threshold');
+  var modeSelect = document.getElementById('compute_cognate_mode') || document.getElementById('compute_cognate_mode_panel');
+  if (modeSelect && modeSelect.value) {
+    CFG._morphology_mode = modeSelect.value;
+    var fullRadio = document.getElementById('mmodef');
+    var partialRadio = document.getElementById('mmodep');
+    if (fullRadio && partialRadio) {
+      fullRadio.checked = (CFG._morphology_mode === 'full');
+      partialRadio.checked = (CFG._morphology_mode === 'partial');
+    }
+  }
+  var input = document.getElementById('compute_cognate_threshold') || document.getElementById('compute_cognate_threshold_panel');
   if (input && input.value) {
     CFG.cognate_threshold = input.value;
   }
@@ -561,11 +573,52 @@ function submitComputeCognates() {
   }
 }
 
+function updateCognateModeSelect() {
+  var mode = CFG._morphology_mode || 'full';
+  var modalSelect = document.getElementById('compute_cognate_mode');
+  if (modalSelect) {
+    modalSelect.value = mode;
+  }
+  var panelSelect = document.getElementById('compute_cognate_mode_panel');
+  if (panelSelect) {
+    panelSelect.value = mode;
+  }
+}
+
 function submitComputeAlignments() {
+  var method = (typeof ALIGN !== "undefined" && typeof ALIGN.getSelectedMethod === "function")
+    ? ALIGN.getSelectedMethod()
+    : (CFG.with_lingpy ? "library" : "edictor");
+  if (method === "edictor") {
+    ALIGN.automated_alignments();
+    return;
+  }
+  if (CFG._morphology_mode === "partial" && (method === "sw" || method === "nw")) {
+    fakeAlert("Smith-Waterman/Needleman-Wunsch is only supported for full cognate mode.");
+    return;
+  }
   if (CFG.with_lingpy) {
     ALIGN.lingpy_alignments();
   } else {
-    ALIGN.automated_alignments();
+    fakeAlert("Selected alignment method requires LingPy. Choose Longest Sequence (EDICTOR) or enable LingPy.");
+  }
+}
+
+function updateAlignmentMethodSelect() {
+  var select = document.getElementById("compute_alignment_method");
+  if (!select) {
+    return;
+  }
+  for (var i = 0; i < select.options.length; i += 1) {
+    var opt = select.options[i];
+    if (opt.value !== "edictor") {
+      opt.disabled = !CFG.with_lingpy;
+    }
+  }
+  if (!CFG.with_lingpy) {
+    select.value = "edictor";
+  } else if (select.value === "edictor") {
+    select.value = "library";
   }
 }
 

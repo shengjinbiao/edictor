@@ -459,8 +459,26 @@ def alignments(s, query, qtype):
     }
     handle_args(args, query, qtype)
     args["wordlist"] = urllib.parse.unquote_plus(args["wordlist"])
+    method = (args.get("method") or "library").strip().lower()
 
     print("Carrying out alignments with LingPy")
+    if method in {"sw", "nw"}:
+        if args["mode"] != "full":
+            send_response(
+                s,
+                "Unsupported alignment method for partial mode.",
+                content_type="text/plain; charset=utf-8",
+                status_code=400,
+            )
+            return
+        out = _pairwise_alignments(args["wordlist"], method)
+        send_response(
+            s,
+            out,
+            content_type="text/plain; charset=utf-8",
+            content_disposition='attachment; filename="triples.tsv"'
+        )
+        return
     # assemble the wordlist header
     import lingpy
     ref = "cogid" if args["mode"] == "full" else "cogids"
@@ -476,7 +494,9 @@ def alignments(s, query, qtype):
         ]
     alms = lingpy.Alignments(tmp, ref=ref, transcription="form",
                              fuzzy=True if args["mode"] == "partial" else False)
-    alms.align(method=args["method"])
+    if method not in {"progressive", "library"}:
+        method = "library"
+    alms.align(method=method)
     out = ""
     for idx in alms:
         out += str(idx) + "\t" + " ".join(alms[idx, "alignment"]) + "\n"
@@ -487,6 +507,113 @@ def alignments(s, query, qtype):
         content_type="text/plain; charset=utf-8",
         content_disposition='attachment; filename="triples.tsv"'
     )
+
+
+def _pairwise_multi_align(seqs, aligner):
+    if not seqs:
+        return []
+
+    idx = max(range(len(seqs)), key=lambda i: len(seqs[i]))
+    reference = seqs[idx]
+    gaps = [0] * (len(reference) + 1)
+    alignments = [None] * len(seqs)
+
+    for i, seq in enumerate(seqs):
+        if i == idx:
+            continue
+        almA, almB, _score = aligner(reference, seq)
+        alignments[i] = (almA, almB)
+        counter = 0
+        gcount = 0
+        for seg in almA:
+            if seg == "-":
+                gcount += 1
+                if gcount > gaps[counter]:
+                    gaps[counter] = gcount
+            else:
+                counter += 1
+                gcount = 0
+
+    gapped = []
+    for i, gap in enumerate(gaps):
+        if i < len(reference):
+            if gap == 0:
+                gapped.append(1)
+            else:
+                gapped.extend([0] * gap)
+                gapped.append(1)
+        else:
+            if gap > 0:
+                gapped.extend([0] * gap)
+
+    out = []
+    for i in range(len(seqs)):
+        if i == idx:
+            alm_out = []
+            counter = 0
+            for g in gapped:
+                if g == 1:
+                    alm_out.append(reference[counter])
+                    counter += 1
+                else:
+                    alm_out.append("-")
+            out.append(alm_out)
+        else:
+            almA, almB = alignments[i]
+            alm_out = []
+            counter = 0
+            for g in gapped:
+                if g == 1:
+                    if counter < len(almB):
+                        alm_out.append(almB[counter])
+                    else:
+                        alm_out.append("-")
+                    counter += 1
+                else:
+                    if counter < len(almA) and almA[counter] == "-":
+                        alm_out.append(almB[counter] if counter < len(almB) else "-")
+                        counter += 1
+                    else:
+                        alm_out.append("-")
+            out.append(alm_out)
+    return out
+
+
+def _pairwise_alignments(wordlist, method):
+    from lingpy.align import pairwise as lp_pairwise
+
+    if method == "sw":
+        def aligner(seqA, seqB):
+            (preA, almA, sufA), (preB, almB, sufB), _score = lp_pairwise.sw_align(seqA, seqB)
+            pre_len = max(len(preA), len(preB))
+            suf_len = max(len(sufA), len(sufB))
+            fullA = preA + (["-"] * (pre_len - len(preA))) + almA + sufA + (["-"] * (suf_len - len(sufA)))
+            fullB = preB + (["-"] * (pre_len - len(preB))) + almB + sufB + (["-"] * (suf_len - len(sufB)))
+            return fullA, fullB, _score
+    else:
+        aligner = lp_pairwise.nw_align
+    rows = []
+    for row in wordlist.split("\n")[:-1]:
+        idx, doculect, concept, tokens, cogid = row.split("\t")
+        rows.append((int(idx), tokens.split(" "), str(cogid)))
+
+    groups = {}
+    for idx, tokens, cogid in rows:
+        if not cogid or cogid == "-":
+            continue
+        groups.setdefault(cogid, []).append((idx, tokens))
+
+    aligned = {}
+    for cogid, entries in groups.items():
+        seqs = [tokens for _, tokens in entries]
+        alms = _pairwise_multi_align(seqs, aligner)
+        for (idx, _tokens), alm in zip(entries, alms):
+            aligned[idx] = " ".join(alm)
+
+    out = ""
+    for idx in sorted(aligned.keys()):
+        out += str(idx) + "\t" + aligned[idx] + "\n"
+    return out
 
 
 def distances(s, query, qtype):
