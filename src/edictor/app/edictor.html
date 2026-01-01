@@ -848,6 +848,24 @@ EDICTOR main menu
             <button type="button" class="btn btn-primary mright" onclick="SND.showSegmentGraph();">音段网络 / Segment Graph</button>
             <button type="button" class="btn btn-primary" onclick="SND.showLanguageGraph();">语言网络 / Language Graph</button>
           </div>
+          <div style="margin-bottom:8px">
+            <label style="min-width:110px;display:inline-block">特征视图</label>
+            <select id="soundchange_feature_mode" class="form-control textfield" style="width:180px;display:inline-block">
+              <option value="class">元辅音全连通 / Class Graph</option>
+              <option value="tree">特征树 / Feature Tree</option>
+              <option value="chain">特征链 / Feature Chain</option>
+            </select>
+            <label style="min-width:100px;display:inline-block;margin-left:10px">起点音段</label>
+            <input id="soundchange_feature_start" class="form-control textfield" style="width:140px;display:inline-block" list="soundchange_feature_list" placeholder="例如 a / p" />
+            <datalist id="soundchange_feature_list"></datalist>
+            <button type="button" class="btn btn-primary mleft" onclick="SND.showFeatureGraph();">绘制 / Draw</button>
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="min-width:110px;display:inline-block">词变链</label>
+            <input id="soundchange_word_start" class="form-control textfield" style="width:260px;display:inline-block" list="soundchange_word_list" placeholder="起点词形（语言: 词形）" />
+            <datalist id="soundchange_word_list"></datalist>
+            <button type="button" class="btn btn-primary mleft" onclick="SND.showWordChain();">词变链 / Word Chain</button>
+          </div>
           <h4 style="margin-top:10px">对应关系列表 / Correspondence List</h4>
           <div id="soundchange_list"></div>
           <h4 style="margin-top:10px">对应热力表 / Heatmap</h4>

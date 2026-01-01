@@ -5,7 +5,8 @@
   pairs: {},
   langPairs: {},
   langPairDetails: {},
-  langCounts: {}
+  langCounts: {},
+  wordForms: []
 };
 
 SND._clear = function () {
@@ -16,6 +17,7 @@ SND._clear = function () {
   SND.langPairs = {};
   SND.langPairDetails = {};
   SND.langCounts = {};
+  SND.wordForms = [];
 };
 
 SND._collectConceptIndices = function (concept) {
@@ -265,6 +267,520 @@ SND._renderHeatmap = function (topN) {
   container.innerHTML = html;
 };
 
+SND._getFeatureVector = function (seg) {
+  if (typeof getSoundDescription !== "function") { return null; }
+  var type = getSoundDescription(seg, "type", true);
+  if (!type) { return null; }
+  return {
+    type: String(type).trim().toLowerCase(),
+    place: String(getSoundDescription(seg, "place", true) || "").trim().toLowerCase(),
+    manner: String(getSoundDescription(seg, "manner", true) || "").trim().toLowerCase(),
+    misc1: String(getSoundDescription(seg, "misc1", true) || "").trim().toLowerCase(),
+    misc2: String(getSoundDescription(seg, "misc2", true) || "").trim().toLowerCase()
+  };
+};
+
+SND._featureDistance = function (a, b) {
+  if (!a || !b || a.type !== b.type) { return null; }
+  var keys = ["place", "manner", "misc1", "misc2"];
+  var diffs = 0;
+  for (var i = 0; i < keys.length; i += 1) {
+    var k = keys[i];
+    if (!a[k] && !b[k]) { continue; }
+    if (!a[k] || !b[k]) { diffs += 1; continue; }
+    if (a[k] !== b[k]) { diffs += 1; }
+  }
+  return diffs;
+};
+
+SND._featureLabel = function (type, key, aVal, bVal) {
+  var label = key;
+  if (type === "vowel") {
+    if (key === "place") { label = "backness"; }
+    else if (key === "manner") { label = "height"; }
+    else if (key === "misc1") { label = "rounding"; }
+  } else {
+    if (key === "misc1") {
+      if ((aVal && aVal.indexOf("voice") > -1) || (bVal && bVal.indexOf("voice") > -1)) {
+        label = "voicing";
+      } else {
+        label = "misc1";
+      }
+    }
+  }
+  return label;
+};
+
+SND._featureDiffLabel = function (a, b) {
+  var keys = ["place", "manner", "misc1", "misc2"];
+  var out = [];
+  for (var i = 0; i < keys.length; i += 1) {
+    var k = keys[i];
+    if (!a[k] || !b[k] || a[k] === b[k]) { continue; }
+    var label = SND._featureLabel(a.type, k, a[k], b[k]);
+    out.push(label + ": " + a[k] + " -> " + b[k]);
+  }
+  return out.join("; ");
+};
+
+SND._getFeatureSegments = function (topN) {
+  var segs = Object.keys(SND.segments).map(function (s) { return [s, SND.segments[s]]; });
+  segs.sort(function (a, b) { return b[1] - a[1]; });
+  segs = segs.slice(0, topN);
+  return segs;
+};
+
+SND._getSoundClassMap = function (model) {
+  if (typeof SOUND_CLASS_MODELS !== "undefined" && SOUND_CLASS_MODELS[model]) {
+    return SOUND_CLASS_MODELS[model];
+  }
+  if (model === "dolgo" && typeof DOLGO !== "undefined") {
+    return DOLGO;
+  }
+  return null;
+};
+
+SND._getSoundClass = function (seg, model) {
+  var map = SND._getSoundClassMap(model);
+  if (!map || !seg) { return null; }
+  if (map[seg]) { return map[seg]; }
+  if (seg.length > 1) {
+    var two = seg.slice(0, 2);
+    if (map[two]) { return map[two]; }
+  }
+  if (map[seg.slice(0, 1)]) { return map[seg.slice(0, 1)]; }
+  if (seg.length > 2 && map[seg.slice(1, 3)]) { return map[seg.slice(1, 3)]; }
+  if (seg.length > 1 && map[seg.slice(1, 2)]) { return map[seg.slice(1, 2)]; }
+  return null;
+};
+
+SND._featureSortKey = function (seg) {
+  var vec = SND._getFeatureVector(seg);
+  if (!vec) { return "zzzz-" + seg; }
+  return [
+    vec.type || "",
+    vec.place || "",
+    vec.manner || "",
+    vec.misc1 || "",
+    vec.misc2 || "",
+    seg
+  ].join("|");
+};
+
+SND._renderFeatureList = function (topN) {
+  var list = document.getElementById("soundchange_feature_list");
+  if (!list) { return; }
+  list.innerHTML = "";
+  var segs = SND._getFeatureSegments(topN);
+  for (var i = 0; i < segs.length; i += 1) {
+    var opt = document.createElement("option");
+    opt.value = segs[i][0];
+    list.appendChild(opt);
+  }
+};
+
+SND._buildFeatureGraph = function (mode, startSeg, topN, minCount) {
+  var segs = SND._getFeatureSegments(topN);
+  var features = {};
+  var counts = {};
+  for (var i = 0; i < segs.length; i += 1) {
+    var seg = segs[i][0];
+    counts[seg] = segs[i][1];
+    var vec = SND._getFeatureVector(seg);
+    if (vec) { features[seg] = vec; }
+  }
+  var nodes = Object.keys(features);
+  if (!nodes.length) { return null; }
+
+  if (!startSeg || !features[startSeg]) {
+    startSeg = nodes[0];
+  }
+
+  if (mode === "class") {
+    var classMap = {};
+    for (var c0 = 0; c0 < nodes.length; c0 += 1) {
+      var seg0 = nodes[c0];
+      var cls = SND._getSoundClass(seg0, "sca") || "UNKNOWN";
+      if (!classMap[cls]) { classMap[cls] = []; }
+      classMap[cls].push(seg0);
+    }
+    var classNodes = [];
+    var idMap = {};
+    var nodeIdx = 0;
+    for (var clsKey in classMap) {
+      classMap[clsKey].sort(function (a, b) {
+        var ka = SND._featureSortKey(a);
+        var kb = SND._featureSortKey(b);
+        if (ka === kb) { return a.localeCompare(b); }
+        return ka < kb ? -1 : 1;
+      });
+      for (var c = 0; c < classMap[clsKey].length; c += 1) {
+        var name = classMap[clsKey][c];
+        idMap[name] = "seg-" + (nodeIdx++);
+        var ctype = features[name].type;
+        var color = (ctype === "vowel") ? "#2D6CA2" : (ctype === "consonant" ? "#dc143c" : "#999");
+        classNodes.push({
+          id: idMap[name],
+          label: name,
+          x: Math.random() * 10,
+          y: Math.random() * 10,
+          size: Math.max(1, Math.log((counts[name] || 1) + 1)),
+          color: color
+        });
+      }
+    }
+    var edges = [];
+    var edgeId = 0;
+    for (var clsKey2 in classMap) {
+      var arr = classMap[clsKey2];
+      for (var i1 = 0; i1 < arr.length - 1; i1 += 1) {
+        var aName = arr[i1];
+        var bName = arr[i1 + 1];
+        var pkey = SND._pairKey(aName, bName);
+        var count = SND.pairs[pkey] || 0;
+        if (typeof minCount === "number" && minCount > 1 && count > 0 && count < minCount) { continue; }
+        var label = clsKey2 + (count > 0 ? (" (" + count + ")") : "");
+        edges.push({
+          id: "fe-" + (edgeId++),
+          source: idMap[aName],
+          target: idMap[bName],
+          size: count > 0 ? Math.max(1, Math.log(count + 1)) : 1,
+          label: label,
+          color: "#666"
+        });
+      }
+    }
+
+    var classEdges = [];
+    var classKeys = Object.keys(classMap);
+    for (var i2 = 0; i2 < classKeys.length; i2 += 1) {
+      for (var j2 = i2 + 1; j2 < classKeys.length; j2 += 1) {
+        var cA = classKeys[i2];
+        var cB = classKeys[j2];
+        var best = null;
+        for (var ai = 0; ai < classMap[cA].length; ai += 1) {
+          for (var bi = 0; bi < classMap[cB].length; bi += 1) {
+            var sA = classMap[cA][ai];
+            var sB = classMap[cB][bi];
+            var pkey2 = SND._pairKey(sA, sB);
+            var cnt = SND.pairs[pkey2] || 0;
+            if (typeof minCount === "number" && minCount > 1 && cnt > 0 && cnt < minCount) { continue; }
+            if (!best || cnt > best.count) {
+              best = { a: sA, b: sB, count: cnt };
+            }
+          }
+        }
+        if (best && best.count > 0) {
+          classEdges.push({
+            aClass: cA,
+            bClass: cB,
+            aSeg: best.a,
+            bSeg: best.b,
+            count: best.count
+          });
+        }
+      }
+    }
+    classEdges.sort(function (x, y) { return y.count - x.count; });
+    var parent = {};
+    var find = function (x) {
+      if (!parent[x]) { parent[x] = x; }
+      if (parent[x] !== x) { parent[x] = find(parent[x]); }
+      return parent[x];
+    };
+    var union = function (a, b) {
+      var ra = find(a);
+      var rb = find(b);
+      if (ra !== rb) { parent[rb] = ra; }
+    };
+    for (var e = 0; e < classEdges.length; e += 1) {
+      var ce = classEdges[e];
+      if (find(ce.aClass) === find(ce.bClass)) { continue; }
+      union(ce.aClass, ce.bClass);
+      edges.push({
+        id: "fe-" + (edgeId++),
+        source: idMap[ce.aSeg],
+        target: idMap[ce.bSeg],
+        size: Math.max(1, Math.log(ce.count + 1)),
+        label: "link (" + ce.count + ")",
+        color: "#999"
+      });
+    }
+    return { nodes: classNodes, edges: edges };
+  }
+
+  var adj = {};
+  for (var a = 0; a < nodes.length; a += 1) {
+    adj[nodes[a]] = {};
+  }
+  for (var key in SND.pairs) {
+    var parts = key.split("||");
+    var left = parts[0];
+    var right = parts[1];
+    if (!adj[left] || !adj[right]) { continue; }
+    var count = SND.pairs[key];
+    if (typeof minCount === "number" && count < minCount) { continue; }
+    var fa = features[left];
+    var fb = features[right];
+    if (!fa || !fb || fa.type !== fb.type) { continue; }
+    var dist = SND._featureDistance(fa, fb);
+    if (dist === null) { continue; }
+    adj[left][right] = { dist: dist, count: count };
+    adj[right][left] = { dist: dist, count: count };
+  }
+
+  var idMap = {};
+  var graphNodes = [];
+  for (var z = 0; z < nodes.length; z += 1) {
+    var sname = nodes[z];
+    idMap[sname] = "seg-" + z;
+    var type = features[sname].type;
+    var color = (type === "vowel") ? "#2D6CA2" : (type === "consonant" ? "#dc143c" : "#999");
+    graphNodes.push({
+      id: idMap[sname],
+      label: sname,
+      x: Math.random() * 10,
+      y: Math.random() * 10,
+      size: Math.max(1, Math.log((counts[sname] || 1) + 1)),
+      color: color
+    });
+  }
+
+  var visited = {};
+  var edges = [];
+  var edgeId = 0;
+  if (mode === "chain") {
+    var current = startSeg;
+    visited[current] = true;
+    while (current) {
+      var neighbors = [];
+      for (var k in adj[current]) {
+        if (!visited[k]) {
+          neighbors.push({ seg: k, dist: adj[current][k].dist, count: adj[current][k].count });
+        }
+      }
+      if (!neighbors.length) { break; }
+      neighbors.sort(function (a1, b1) {
+        if (a1.count !== b1.count) { return b1.count - a1.count; }
+        if (a1.dist !== b1.dist) { return a1.dist - b1.dist; }
+        return (counts[b1.seg] || 1) - (counts[a1.seg] || 1);
+      });
+      var next = neighbors[0].seg;
+      var label = SND._featureDiffLabel(features[current], features[next]);
+      label = label ? (label + " (" + adj[current][next].count + ")") : String(adj[current][next].count);
+      edges.push({
+        id: "fe-" + (edgeId++),
+        source: idMap[current],
+        target: idMap[next],
+        size: 1,
+        label: label
+      });
+      visited[next] = true;
+      current = next;
+    }
+  } else {
+    var queue = [startSeg];
+    visited[startSeg] = true;
+    while (queue.length) {
+      var base = queue.shift();
+      var neigh = [];
+      for (var k2 in adj[base]) {
+        if (!visited[k2]) {
+          neigh.push({ seg: k2, dist: adj[base][k2].dist, count: adj[base][k2].count });
+        }
+      }
+      neigh.sort(function (a2, b2) {
+        if (a2.count !== b2.count) { return b2.count - a2.count; }
+        if (a2.dist !== b2.dist) { return a2.dist - b2.dist; }
+        return (counts[b2.seg] || 1) - (counts[a2.seg] || 1);
+      });
+      for (var m = 0; m < neigh.length; m += 1) {
+        var child = neigh[m].seg;
+        var clabel = SND._featureDiffLabel(features[base], features[child]);
+        clabel = clabel ? (clabel + " (" + adj[base][child].count + ")") : String(adj[base][child].count);
+        edges.push({
+          id: "fe-" + (edgeId++),
+          source: idMap[base],
+          target: idMap[child],
+          size: 1,
+          label: clabel
+        });
+        visited[child] = true;
+        queue.push(child);
+      }
+    }
+  }
+
+  return { nodes: graphNodes, edges: edges };
+};
+
+SND._levenshteinTokens = function (a, b) {
+  var n = a.length;
+  var m = b.length;
+  var dp = [];
+  for (var i = 0; i <= n; i += 1) {
+    dp[i] = new Array(m + 1);
+    dp[i][0] = i;
+  }
+  for (var j = 0; j <= m; j += 1) {
+    dp[0][j] = j;
+  }
+  for (var i1 = 1; i1 <= n; i1 += 1) {
+    for (var j1 = 1; j1 <= m; j1 += 1) {
+      var cost = a[i1 - 1] === b[j1 - 1] ? 0 : 1;
+      var del = dp[i1 - 1][j1] + 1;
+      var ins = dp[i1][j1 - 1] + 1;
+      var sub = dp[i1 - 1][j1 - 1] + cost;
+      dp[i1][j1] = Math.min(del, ins, sub);
+    }
+  }
+  return dp[n][m];
+};
+
+SND._renderWordList = function (forms) {
+  var list = document.getElementById("soundchange_word_list");
+  if (!list) { return; }
+  list.innerHTML = "";
+  for (var i = 0; i < forms.length; i += 1) {
+    var opt = document.createElement("option");
+    opt.value = forms[i].label;
+    list.appendChild(opt);
+  }
+};
+
+SND._buildWordChain = function (forms, startLabel) {
+  if (!forms.length) { return null; }
+  var idxMap = {};
+  for (var i = 0; i < forms.length; i += 1) {
+    idxMap[forms[i].label] = i;
+  }
+  var startIdx = idxMap[startLabel];
+  if (typeof startIdx !== "number") { startIdx = 0; }
+
+  var nodes = [];
+  var idMap = {};
+  for (var i1 = 0; i1 < forms.length; i1 += 1) {
+    idMap[i1] = "w-" + i1;
+    nodes.push({
+      id: idMap[i1],
+      label: forms[i1].label,
+      x: Math.random() * 10,
+      y: Math.random() * 10,
+      size: Math.max(1, Math.log(forms[i1].tokens.length + 1)),
+      color: "#2D6CA2"
+    });
+  }
+
+  var clusters = {};
+  for (var k = 0; k < forms.length; k += 1) {
+    var seq = forms[k].tokens.map(function (t) {
+      return SND._getSoundClass(t, "sca") || "?";
+    }).join("");
+    if (!clusters[seq]) { clusters[seq] = []; }
+    clusters[seq].push(k);
+  }
+
+  var edges = [];
+  var edgeId = 0;
+  var reps = [];
+  var clusterKeys = Object.keys(clusters);
+  for (var c = 0; c < clusterKeys.length; c += 1) {
+    var key = clusterKeys[c];
+    var items = clusters[key];
+    items.sort(function (a, b) {
+      var la = forms[a].label;
+      var lb = forms[b].label;
+      return la.localeCompare(lb);
+    });
+    var rep = items[0];
+    reps.push({ key: key, idx: rep });
+
+    var visited = {};
+    var current = rep;
+    visited[current] = true;
+    while (true) {
+      var best = null;
+      for (var j = 0; j < items.length; j += 1) {
+        var cand = items[j];
+        if (visited[cand]) { continue; }
+        var dist = SND._levenshteinTokens(forms[current].tokens, forms[cand].tokens);
+        if (!best || dist < best.dist) {
+          best = { idx: cand, dist: dist };
+        }
+      }
+      if (!best) { break; }
+      edges.push({
+        id: "we-" + (edgeId++),
+        source: idMap[current],
+        target: idMap[best.idx],
+        size: Math.max(1, Math.log(best.dist + 1)),
+        label: String(best.dist),
+        color: "#888"
+      });
+      visited[best.idx] = true;
+      current = best.idx;
+    }
+  }
+
+  var classEdges = [];
+  for (var i2 = 0; i2 < reps.length; i2 += 1) {
+    for (var j2 = i2 + 1; j2 < reps.length; j2 += 1) {
+      var aKey = reps[i2].key.split("");
+      var bKey = reps[j2].key.split("");
+      var dist = SND._levenshteinTokens(aKey, bKey);
+      classEdges.push({
+        a: reps[i2],
+        b: reps[j2],
+        dist: dist
+      });
+    }
+  }
+  classEdges.sort(function (x, y) { return x.dist - y.dist; });
+  var parent = {};
+  var find = function (x) {
+    if (!parent[x]) { parent[x] = x; }
+    if (parent[x] !== x) { parent[x] = find(parent[x]); }
+    return parent[x];
+  };
+  var union = function (a, b) {
+    var ra = find(a);
+    var rb = find(b);
+    if (ra !== rb) { parent[rb] = ra; }
+  };
+  for (var e = 0; e < classEdges.length; e += 1) {
+    var ce = classEdges[e];
+    if (find(ce.a.key) === find(ce.b.key)) { continue; }
+    union(ce.a.key, ce.b.key);
+    edges.push({
+      id: "we-" + (edgeId++),
+      source: idMap[ce.a.idx],
+      target: idMap[ce.b.idx],
+      size: Math.max(1, Math.log(ce.dist + 1)),
+      label: "class " + ce.dist,
+      color: "#666"
+    });
+  }
+
+  if (reps.length && typeof startIdx === "number") {
+    var startKey = forms[startIdx].tokens.map(function (t) {
+      return SND._getSoundClass(t, "sca") || "?";
+    }).join("");
+    var target = reps.filter(function (r) { return r.key === startKey; })[0];
+    if (target) {
+      edges.push({
+        id: "we-" + (edgeId++),
+        source: idMap[startIdx],
+        target: idMap[target.idx],
+        size: 1,
+        label: "start",
+        color: "#2D6CA2"
+      });
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+};
+
 SND._buildSegmentGraph = function (topN, minCount) {
   var segs = Object.keys(SND.segments).map(function (s) { return [s, SND.segments[s]]; });
   segs.sort(function (a, b) { return b[1] - a[1]; });
@@ -382,6 +898,44 @@ SND.showLanguageGraph = function () {
   SND.showGraph(graph, "Language Correspondence Graph");
 };
 
+SND.showFeatureGraph = function () {
+  if (!SND.data) { fakeAlert("请先运行分析。"); return; }
+  if (typeof getSoundDescription !== "function") {
+    fakeAlert("未找到音段特征数据。");
+    return;
+  }
+  var modeSel = document.getElementById("soundchange_feature_mode");
+  var mode = modeSel ? modeSel.value : "tree";
+  var startInput = document.getElementById("soundchange_feature_start");
+  var startSeg = startInput ? startInput.value.trim() : "";
+  var topN = parseInt(document.getElementById("soundchange_topn").value, 10) || 20;
+  var minCount = parseInt(document.getElementById("soundchange_mincount").value, 10) || 2;
+  var graph = SND._buildFeatureGraph(mode, startSeg, topN, minCount);
+  if (!graph || !graph.nodes.length) {
+    fakeAlert("没有可用的特征节点。");
+    return;
+  }
+  var title = (mode === "chain") ? "Feature Chain" : "Feature Tree";
+  if (mode === "class") { title = "Feature Class Graph"; }
+  SND.showGraph(graph, title);
+};
+
+SND.showWordChain = function () {
+  if (!SND.data) { fakeAlert("请先运行分析。"); return; }
+  if (!SND.wordForms || !SND.wordForms.length) {
+    fakeAlert("没有可用的词形数据。");
+    return;
+  }
+  var startInput = document.getElementById("soundchange_word_start");
+  var startLabel = startInput ? startInput.value.trim() : "";
+  var graph = SND._buildWordChain(SND.wordForms, startLabel);
+  if (!graph || !graph.nodes.length) {
+    fakeAlert("无法构建词变链。");
+    return;
+  }
+  SND.showGraph(graph, "Word Form Chain");
+};
+
 SND.run = function () {
   if (!WLS || !WLS.header) {
     SND._setStatus("错误：请先加载TSV文件。", true);
@@ -412,6 +966,15 @@ SND.run = function () {
   SND._appendLog("Start sound change analysis: " + concept + " (" + mode + ")");
   SND._compute(indices, cogIdx, mode);
   SND.data = true;
+  SND.wordForms = [];
+  for (var i = 0; i < indices.length; i += 1) {
+    var idx = indices[i];
+    var tokens = SND._getAlignTokens(idx);
+    if (!tokens.length) { continue; }
+    var lang = WLS[idx][CFG._taxa];
+    var label = lang + ": " + tokens.join(" ");
+    SND.wordForms.push({ idx: idx, label: label, tokens: tokens });
+  }
   var topN = parseInt(document.getElementById("soundchange_topn").value, 10) || 20;
   var minCount = parseInt(document.getElementById("soundchange_mincount").value, 10) || 2;
   SND._renderSummary(indices);
@@ -419,6 +982,8 @@ SND.run = function () {
   SND._renderHeatmap(topN);
   SND._renderParams(topN, minCount, indices, mode);
   SND._renderNotes();
+  SND._renderFeatureList(topN);
+  SND._renderWordList(SND.wordForms);
   SND._appendLog("完成统计：对应对数 " + Object.keys(SND.pairs).length);
 };
 
