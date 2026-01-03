@@ -205,6 +205,44 @@ EDICTOR main menu
           </li>
           <li class="dropdown">
             <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+              特征向量分析
+              <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" role="menu">
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.tokenize();">
+                  分词
+                </a>
+              </li>
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.vectorize();">
+                  特征向量
+                </a>
+              </li>
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.align();">
+                  对齐
+                </a>
+              </li>
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.cognates();">
+                  相似度/同源判定
+                </a>
+              </li>
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.distances();">
+                  距离与谱系树
+                </a>
+              </li>
+              <li>
+                <a href="#" onclick="event.preventDefault();FEAT.soundchange();">
+                  音变链
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
               分析
               <span class="caret"></span>
             </a>
@@ -753,6 +791,57 @@ EDICTOR main menu
     </div>
   </div>
 
+  <div id="feature_distances_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="feature_distances_modal_label">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h3 id="feature_distances_modal_label">Feature Distances & Tree</h3>
+        </div>
+        <div class="modal-body">
+          <div id="feat_distances_info" style="margin-bottom:10px"></div>
+          <h4>Distance Heatmap</h4>
+          <div id="feat_distances_heatmap" style="overflow:auto;max-height:360px;border:1px solid #eee;padding:6px"></div>
+          <h4 style="margin-top:12px">Tree</h4>
+          <div id="feat_distances_tree" style="overflow:auto;max-height:360px;border:1px solid #eee;padding:6px;background:#fff"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="feature_soundchange_modal" class="modal fade compute-modal" tabindex="-1" role="dialog" aria-labelledby="feature_soundchange_modal_label">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h3 id="feature_soundchange_modal_label">Feature Soundchange</h3>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom:8px">
+            <label style="min-width:90px;display:inline-block">起点音段</label>
+            <input id="feat_soundchange_start" class="form-control textfield" style="width:140px;display:inline-block" placeholder="例如 p" />
+            <button type="button" class="btn btn-primary mleft" onclick="FEAT.updateSoundchangeChain();">生成链</button>
+          </div>
+          <div id="feat_soundchange_chain" style="margin-bottom:10px"></div>
+          <div style="margin-bottom:8px">
+            <label style="min-width:90px;display:inline-block">词变链</label>
+            <input id="feat_soundchange_word_start" class="form-control textfield" style="width:260px;display:inline-block" list="feat_soundchange_word_list" placeholder="起点词形（语言: 词形）" />
+            <datalist id="feat_soundchange_word_list"></datalist>
+            <button type="button" class="btn btn-primary mleft" onclick="FEAT.showWordChain();">词变链</button>
+          </div>
+          <h4>Transitions</h4>
+          <div id="feat_soundchange_table" style="max-height:360px;overflow:auto"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
     <div id="workflow_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="workflow_modal_label">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
@@ -968,6 +1057,7 @@ EDICTOR main menu
 <script src="js/segments.js"></script>
 <script src="js/glosses.js"></script>
 <script src="js/wordlist.js"></script>
+<script src="js/feature/feature.js"></script>
 <script src="js/soundchange.js"></script>
 <script src="js/starter.js"></script>
 

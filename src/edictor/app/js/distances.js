@@ -87,7 +87,8 @@ DIST._layoutTree = function (root) {
   };
 };
 
-DIST._buildTreeSVG = function (newick, taxaMap) {
+DIST._buildTreeSVG = function (newick, taxaMap, opts) {
+  opts = opts || {};
   var root;
   try {
     root = DIST._parseNewick(newick);
@@ -102,7 +103,7 @@ DIST._buildTreeSVG = function (newick, taxaMap) {
     return null;
   }
 
-  var rowHeight = 16;
+  var rowHeight = opts.rowHeight || 16;
   var leftPad = 20;
   var rightPad = 20;
   var topPad = 20;
@@ -116,7 +117,7 @@ DIST._buildTreeSVG = function (newick, taxaMap) {
     if (label.length > maxLabel) { maxLabel = label.length; }
   }
 
-  var scaleX = 80;
+  var scaleX = opts.scaleX || 80;
   var width = leftPad + layout.maxDepth * scaleX + labelPad + (maxLabel * 7) + rightPad;
   var height = topPad + (leaves.length - 1) * rowHeight + bottomPad;
 

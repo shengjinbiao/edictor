@@ -6,7 +6,7 @@ from edictor.util import (
         check, configuration,
         file_type, file_name, file_handler, triples, download,
         update, serve_base, new_id, modifications, alignments,
-        cognates, patterns, distances, semantic_filter, semantic_batch, server_page, server_export,
+        cognates, patterns, distances, feature_pipeline, semantic_filter, semantic_batch, server_page, server_export,
         upload_semantic_file,
         orthography_tokenize, quit
         )
@@ -62,6 +62,8 @@ class Handler(SimpleHTTPRequestHandler):
                 patterns(s, post_data_bytes, "POST")
             if fn == "/distances.py":
                 distances(s, post_data_bytes, "POST")
+            if fn == "/feature.py":
+                feature_pipeline(s, post_data_bytes, "POST")
             if fn == "/semantic_filter.py":
                 semantic_filter(s, post_data_bytes, "POST")
             if fn == "/semantic_batch.py":
@@ -114,6 +116,8 @@ class Handler(SimpleHTTPRequestHandler):
                 server_page(s, s.path, "GET")
             if fn == "/server_export.py":
                 server_export(s, s.path, "GET")
+            if fn == "/feature.py":
+                feature_pipeline(s, s.path, "GET")
             if fn == "/quit.py":
                 quit(s)
         except Exception:

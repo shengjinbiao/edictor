@@ -3,6 +3,7 @@ Commandline Interface of EDICTOR
 """
 
 import webbrowser
+import os
 from http.server import HTTPServer
 import argparse
 from pathlib import Path
@@ -113,6 +114,7 @@ class server(Command):
         """
         EDICTOR 3 Server Application.
         """
+        os.environ.setdefault("PYTHONUTF8", "1")
         DATA["config"] = args.config
         from edictor.server import Handler
         httpd = HTTPServer(("", args.port), Handler)

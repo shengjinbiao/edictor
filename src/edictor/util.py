@@ -760,6 +760,21 @@ def distances(s, query, qtype):
     )
 
 
+def feature_pipeline(s, query, qtype):
+    args = {
+        "action": "",
+        "wordlist": ""
+    }
+    handle_args(args, query, qtype)
+    args["wordlist"] = urllib.parse.unquote_plus(args["wordlist"])
+    try:
+        from edictor.feature import handle_feature_request
+        result = handle_feature_request(args)
+    except Exception as exc:
+        result = {"error": "Feature backend error: " + str(exc)}
+    send_response(s, json.dumps(result), "application/json; charset=utf-8")
+
+
 def semantic_filter(s, query, qtype):
     args = {"payload": ""}
     handle_args(args, query, qtype)

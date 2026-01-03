@@ -862,25 +862,40 @@ SND._buildLanguageGraph = function (minCount) {
 
 SND.showGraph = function (graph, title) {
   var graphStr = JSURL.stringify(graph);
-  var url = 'plugouts/sigma_big.html?' + graphStr;
+  var url = 'plugouts/sigma_big.html?';
+  if (graphStr.length > 1800 && window.localStorage) {
+    var key = "edictor_graph_" + Date.now();
+    try {
+      localStorage.setItem(key, graphStr);
+      url += "storage=" + encodeURIComponent(key);
+    } catch (e) {
+      url += graphStr;
+    }
+  } else {
+    url += graphStr;
+  }
   var nid = document.createElement('div');
   nid.style.display = '';
   nid.style.zIndex = 2000;
   nid.className = 'editmode';
   nid.id = 'editmode';
-  var text = '<div class="iframe-message" style="width:920px" id="scgraph">' +
+  var text = '<div class="iframe-message" style="position:fixed;top:5vh;left:5vw;width:90vw;height:88vh;max-width:95vw;max-height:92vh;margin:0;" id="scgraph">' +
     '<p style="color:white;font-weight:bold;">' +
     '<span class="main_handle pull-left" style="margin-left:0px;margin-top:2px;" ></span>' +
     title +
     '</p>' +
     '<iframe id="iframe-graph" onload=UTIL.resizeframe(this);" src="' + url + '"' +
-    ' style="width:98%;height:82%;min-height:560px;max-height:880px;border:2px solid #2D6CA2;"></iframe>' +
-    '<br><div class="btn btn-primary okbutton" onclick="' +
+    ' style="width:98%;height:calc(100% - 60px);min-height:360px;border:2px solid #2D6CA2;"></iframe>' +
+    '<div class="btn btn-primary okbutton" onclick="' +
     "$('#editmode').remove(); document.onkeydown = function(event){basickeydown(event)};" +
     '")> OK </div></div>';
   document.body.appendChild(nid);
   nid.innerHTML = text;
-  $('#scgraph').draggable({ handle: '.main_handle' }).resizable();
+  $('#scgraph').draggable({ handle: '.main_handle' }).resizable({
+    handles: 'all',
+    minWidth: 600,
+    minHeight: 420
+  });
 };
 
 SND.showSegmentGraph = function () {

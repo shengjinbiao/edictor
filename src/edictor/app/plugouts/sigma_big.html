@@ -75,8 +75,20 @@
 <body style="background-color:white;">
   <div id="container"></div>
 <script>
-var data = window.location.href.split('?');
-var graph = JSURL.parse(decodeURI(data[1]));
+var data = window.location.href.split('?')[1] || "";
+var graphStr = "";
+if (data.indexOf("storage=") === 0) {
+  var key = decodeURIComponent(data.slice("storage=".length));
+  try {
+    graphStr = localStorage.getItem(key) || "";
+    localStorage.removeItem(key);
+  } catch (e) {
+    graphStr = "";
+  }
+} else {
+  graphStr = decodeURI(data);
+}
+var graph = JSURL.parse(graphStr);
 var sig = {};
 sig.graph = graph;
 sig.container = 'container';

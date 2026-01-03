@@ -987,7 +987,7 @@ UTIL.settings = {
   'root_formatter' : false,
   '_alignment':false,
   '_patterns':-1, /* patterns of sound correspondences */
-  'highlight': ['TOKENS','ALIGNMENT', 'SEGMENTS'],
+  'highlight': ['TOKENS','ALIGNMENT', 'SEGMENTS', 'FEAT_ALIGN', 'FEATALIGN'],
   'sampa' : ['IPA','TOKENS', 'SEGMENTS', 'TRANSCRIPTION'],
   'sound_class_model': 'dolgo',
   'css': ["menu:show","database:hide"],
