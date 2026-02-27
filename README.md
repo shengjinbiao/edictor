@@ -1,5 +1,10 @@
 # EDICTOR 3: Web-Based Tool for Computer-Assisted Language Comparison
 
+## 中文完整教程
+
+- 仓库地址（官方）：https://github.com/digling/edictor
+- 中文完整教程：`docs/EDICTOR_完整中文教程.md`
+
 EDICTOR is a web-based tool for computer-assisted language comparison. As of Version 3, EDICTOR is available in two forms. You can access the application via its website at [https://edictor.org](https://edictor.org) or you can install a Python application that allows you to run EDICTOR with more features locally in your webbrowser.
 
 In order to get started with the local application, you should make sure to have a recent Python installation (3.9 or higher) along with the PIP package manager. It is necessary to install the package from a virtual environment, so we start with setting this up.
