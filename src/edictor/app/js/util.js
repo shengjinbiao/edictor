@@ -1399,6 +1399,16 @@ UTIL.filter_by_concept = function(concept) {
 };
 
 UTIL.display_next_concept = function() {
+  if (CFG._selected_concepts && CFG._selected_concepts.length > 1) {
+    var next = document.getElementById('next');
+    if (next && !next.classList.contains('hidden')) {
+      var toNext = parseInt((next.value || '').split('-')[0], 10);
+      if (!isNaN(toNext) && toNext > 0) {
+        showWLS(toNext);
+      }
+    }
+    return;
+  }
   if (typeof CFG._current_concept == 'undefined') {
     CFG._current_concept = WLS.c2i[1];
   }
@@ -1413,6 +1423,16 @@ UTIL.display_next_concept = function() {
 };
 
 UTIL.display_previous_concept = function() {
+  if (CFG._selected_concepts && CFG._selected_concepts.length > 1) {
+    var previous = document.getElementById('previous');
+    if (previous && !previous.classList.contains('hidden')) {
+      var toPrev = parseInt((previous.value || '').split('-')[0], 10);
+      if (!isNaN(toPrev) && toPrev > 0) {
+        showWLS(toPrev);
+      }
+    }
+    return;
+  }
   if (typeof CFG._current_concept == 'undefined') {
     CFG._current_concept = WLS.c2i[1];
   }

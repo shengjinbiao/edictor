@@ -17,12 +17,45 @@ def _require_panphon():
     return True
 
 
+def _patch_panphon_utf8(panphon):
+    import importlib.resources as resources
+    import pandas as pd
+    from panphon.featuretable import FeatureTable
+    from panphon.segment import Segment
+
+    def _read_bases(self, fn, weights):
+        spec_to_int = {"+": 1, "0": 0, "-": -1}
+        with resources.files("panphon").joinpath(fn).open(encoding="utf-8") as f:
+            df = pd.read_csv(f)
+        df["ipa"] = df["ipa"].apply(self.normalize)
+        feature_names = list(df.columns[1:])
+        df[feature_names] = df[feature_names].map(lambda x: spec_to_int[x])
+        segments = [
+            (row["ipa"], Segment(feature_names, row[1:].to_dict(), weights=weights))
+            for (_, row) in df.iterrows()
+        ]
+        seg_dict = dict(segments)
+        return segments, seg_dict, feature_names
+
+    def _read_weights(self, weights_fn):
+        with resources.files("panphon").joinpath(weights_fn).open(encoding="utf-8") as f:
+            df = pd.read_csv(f)
+        return df.iloc[0].astype(float).tolist()
+
+    FeatureTable._read_bases = _read_bases
+    FeatureTable._read_weights = _read_weights
+
+
 def _feature_table():
     import panphon
     prev = locale.getpreferredencoding
     locale.getpreferredencoding = lambda _do_setlocale=True: "utf-8"
     try:
-        ft = panphon.FeatureTable()
+        try:
+            ft = panphon.FeatureTable()
+        except UnicodeDecodeError:
+            _patch_panphon_utf8(panphon)
+            ft = panphon.FeatureTable()
     finally:
         locale.getpreferredencoding = prev
     return ft, ft.names, [0] * len(ft.names)
@@ -58,13 +91,31 @@ def _segment_vectors(ft, zero, segs):
     return out
 
 
-def _feature_distance(vec_a, vec_b):
+def _feature_distance(vec_a, vec_b, names=None):
     if not vec_a or not vec_b:
         return 1.0
     if len(vec_a) != len(vec_b):
         return 1.0
     total = sum(abs(a - b) for a, b in zip(vec_a, vec_b))
-    return total / (2.0 * len(vec_a))
+    base = total / (2.0 * len(vec_a))
+    penalty = 0.0
+    if names:
+        idx = {name: i for i, name in enumerate(names)}
+        def _val(name):
+            i = idx.get(name)
+            if i is None:
+                return 0
+            return vec_a[i], vec_b[i]
+        cons = _val("cons")
+        syl = _val("syl")
+        son = _val("son")
+        if cons and cons[0] * cons[1] < 0:
+            penalty += 0.6
+        if syl and syl[0] * syl[1] < 0:
+            penalty += 0.4
+        if son and son[0] * son[1] < 0:
+            penalty += 0.2
+    return min(1.5, base + penalty)
 
 
 def _sequence_distance(seq_a, seq_b, ft, zero):
@@ -74,6 +125,7 @@ def _sequence_distance(seq_a, seq_b, ft, zero):
         return 1.0
     vecs_a = _segment_vectors(ft, zero, seq_a)
     vecs_b = _segment_vectors(ft, zero, seq_b)
+    names = ft.names
     len_a = len(seq_a)
     len_b = len(seq_b)
     dp = [[0.0] * (len_b + 1) for _ in range(len_a + 1)]
@@ -83,7 +135,7 @@ def _sequence_distance(seq_a, seq_b, ft, zero):
         dp[0][j] = float(j)
     for i in range(1, len_a + 1):
         for j in range(1, len_b + 1):
-            sub = _feature_distance(vecs_a[i - 1], vecs_b[j - 1])
+            sub = _feature_distance(vecs_a[i - 1], vecs_b[j - 1], names)
             dp[i][j] = min(
                 dp[i - 1][j] + 1.0,
                 dp[i][j - 1] + 1.0,
@@ -97,6 +149,7 @@ def _align_pair(seq_a, seq_b, ft, zero):
     len_b = len(seq_b)
     vecs_a = _segment_vectors(ft, zero, seq_a)
     vecs_b = _segment_vectors(ft, zero, seq_b)
+    names = ft.names
     dp = [[0.0] * (len_b + 1) for _ in range(len_a + 1)]
     back = [[None] * (len_b + 1) for _ in range(len_a + 1)]
     for i in range(1, len_a + 1):
@@ -108,7 +161,7 @@ def _align_pair(seq_a, seq_b, ft, zero):
     back[0][0] = "end"
     for i in range(1, len_a + 1):
         for j in range(1, len_b + 1):
-            sub = dp[i - 1][j - 1] + _feature_distance(vecs_a[i - 1], vecs_b[j - 1])
+            sub = dp[i - 1][j - 1] + _feature_distance(vecs_a[i - 1], vecs_b[j - 1], names)
             dele = dp[i - 1][j] + 1.0
             ins = dp[i][j - 1] + 1.0
             best = min(sub, dele, ins)
